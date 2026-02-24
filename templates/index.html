@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}论文被引画像智能体{% endblock %}
+{% block nav_home %}active{% endblock %}
+
+{% block content %}
+
+<!-- Hero -->
+<div class="agent-hero">
+  <div style="position:relative;z-index:1">
+    <div class="hero-eyebrow">CITATION INTELLIGENCE AGENT</div>
+    <h1 class="hero-title">论文被引<span>画像分析</span></h1>
+    <p class="hero-desc">
+      输入论文题目，智能体将自动检索引用关系、搜索学者画像，并生成多维分析报告。支持多篇同时分析。
+    </p>
+  </div>
+</div>
+
+<!-- Paper Input -->
+<div class="agent-card">
+  <div class="agent-card-label">
+    <i class="bi bi-file-text" style="color:var(--accent)"></i>&nbsp; 目标论文题目
+    <span style="color:var(--light);font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px">每行一篇，支持多篇同时分析</span>
+  </div>
+  <textarea id="paper-titles" class="agent-textarea" rows="4"
+    placeholder="Attention Is All You Need&#10;A Survey on Visual Foundation Models&#10;..."></textarea>
+</div>
+
+<!-- Config Accordion -->
+<div class="accordion mb-4" id="config-accordion">
+  <div class="accordion-item">
+    <h2 class="accordion-header">
+      <button class="accordion-button collapsed" type="button"
+          data-bs-toggle="collapse" data-bs-target="#config-panel">
+        <i class="bi bi-sliders" style="color:var(--accent)"></i>&nbsp; API 配置
+        <span style="font-size:11px;color:var(--light);margin-left:8px;font-weight:400">点击展开 / 折叠</span>
+      </button>
+    </h2>
+    <div id="config-panel" class="accordion-collapse collapse">
+      <div class="accordion-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">ScraperAPI Key(s) <span style="color:var(--light)">(多个用英文逗号分隔)</span></label>
+            <input type="text" id="idx-scraper-keys" class="form-control" placeholder="key1,key2,key3">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">OpenAI 兼容 API Key</label>
+            <input type="password" id="idx-openai-key" class="form-control" placeholder="sk-...">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Base URL</label>
+            <input type="text" id="idx-openai-url" class="form-control" placeholder="https://api.gpt.ge/v1/">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Search Model</label>
+            <select id="idx-openai-model" class="form-select">
+              <option value="gemini-3-flash-preview-search" selected>gemini-3-flash-preview-search</option>
+              <option value="gemini-3.1-pro-preview-search">gemini-3.1-pro-preview-search</option>
+              <option value="gpt-5-search-api">gpt-5-search-api</option>
+              <option value="deepseek-r1-search">deepseek-r1-search</option>
+              <option value="deepseek-v3-search">deepseek-v3-search</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">输出文件前缀</label>
+            <input type="text" id="idx-output-prefix" class="form-control" value="paper">
+          </div>
+          <div class="col-12">
+            <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:4px">
+              <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
+                <input class="form-check-input" type="checkbox" id="idx-renowned-scholar">
+                启用著名学者筛选
+              </label>
+              <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
+                <input class="form-check-input" type="checkbox" id="idx-author-verify">
+                启用作者信息验证
+              </label>
+              <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
+                <input class="form-check-input" type="checkbox" id="idx-citing-description">
+                启用引用描述搜索
+                <span style="font-size:11px;color:var(--light)">(Phase 4，耗时较长)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
+                <input class="form-check-input" type="checkbox" id="idx-dashboard">
+                启用画像报告生成
+                <span style="font-size:11px;color:var(--light)">(Phase 5，需先启用著名学者筛选)</span>
+              </label>
+            </div>
+          </div>
+          <div class="col-md-5" id="idx-dashboard-model-row" style="display:none;">
+            <label class="form-label">画像报告模型 <span style="color:var(--light);font-weight:400">(Phase 5 LLM，无需 web search)</span></label>
+            <input type="text" id="idx-dashboard-model" class="form-control"
+                placeholder="gemini-3-flash-preview-nothinking">
+            <div class="form-text">推荐使用非 search 模型，与上方 Search Model 独立</div>
+          </div>
+          <div class="col-12" style="display:flex;align-items:center;gap:10px;justify-content:flex-end">
+            <button id="idx-save-config-btn" class="btn-agent-sm">
+              <i class="bi bi-check2"></i> 保存配置
+            </button>
+            <span id="idx-save-indicator">✓ 已保存</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Action Buttons -->
+<div style="display:flex;gap:10px;margin-bottom:20px">
+  <button id="idx-run-btn" class="btn-agent-primary" style="flex:1;justify-content:center;padding:12px">
+    <i class="bi bi-play-fill"></i> 开始分析
+  </button>
+  <button id="idx-cancel-btn" class="btn-agent-danger" style="display:none">
+    <i class="bi bi-stop-fill"></i> 取消
+  </button>
+</div>
+
+<!-- Progress -->
+<div id="idx-progress-section" style="display:none;" class="agent-progress-wrap">
+  <div class="agent-progress-header">
+    <div class="agent-phase-label">
+      <div class="phase-dot"></div>
+      <span id="idx-phase-label">处理中...</span>
+    </div>
+    <span id="idx-progress-text" class="agent-progress-count"></span>
+  </div>
+  <div class="agent-progress-track">
+    <div id="idx-progress-bar" class="agent-progress-bar"></div>
+  </div>
+</div>
+
+<!-- Reasoning Log Panel -->
+<div id="idx-log-section" style="display:none;" class="reasoning-panel">
+  <div class="reasoning-panel-header">
+    <div class="rp-dots">
+      <div class="rp-dot r"></div>
+      <div class="rp-dot y"></div>
+      <div class="rp-dot g"></div>
+    </div>
+    <span class="rp-title">实时日志</span>
+    <div class="rp-thinking" id="rp-thinking-indicator">
+      <div class="think-dot"></div>
+      <div class="think-dot"></div>
+      <div class="think-dot"></div>
+      <span style="font-family:'Inter',sans-serif">Thinking and Searching</span>
+    </div>
+    <button id="idx-clear-log-btn" class="btn-agent-sm" style="margin-left:8px">清空</button>
+  </div>
+  <div class="reasoning-body" id="idx-log-container">
+    <div class="reasoning-empty">
+      <div class="reasoning-empty-icon">🤖</div>
+      <div class="reasoning-empty-text">等待智能体启动...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Results -->
+<div id="idx-results-section" style="display:none;">
+  <div class="agent-results-card">
+    <div class="agent-results-header">
+      <i class="bi bi-check-circle-fill"></i> 分析完成 — 结果文件
+    </div>
+    <div class="agent-results-body" id="idx-results-body">
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/websocket.js"></script>
+<script src="/static/js/main.js"></script>
+{% endblock %}

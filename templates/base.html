@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}论文被引画像智能体{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="agent-navbar">
+        <div class="agent-navbar-inner">
+            <a href="/" class="agent-brand">
+                <div class="agent-brand-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="3" fill="#58a6ff"/>
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke="#58a6ff" stroke-width="1.5" fill="none" opacity="0.4"/>
+                        <path d="M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M4.93 19.07l4.24-4.24M14.83 9.17l4.24-4.24" stroke="#3fb950" stroke-width="1.5" opacity="0.6"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="agent-brand-name">论文被引画像智能体</div>
+                    <div class="agent-brand-sub">Citation Intelligence Agent</div>
+                </div>
+            </a>
+            <div class="agent-nav-links">
+                <a href="/" class="agent-nav-link {% block nav_home %}{% endblock %}">
+                    <i class="bi bi-house-fill"></i> 首页
+                </a>
+                <a href="/config" class="agent-nav-link {% block nav_config %}{% endblock %}">
+                    <i class="bi bi-sliders"></i> 配置
+                </a>
+                <a href="/results" class="agent-nav-link {% block nav_results %}{% endblock %}">
+                    <i class="bi bi-folder2-open"></i> 结果
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="agent-page-content">
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer class="agent-footer">
+        <small>论文被引画像智能体 &nbsp;·&nbsp; 上海交通大学 VisionXLab@RethinkLab</small>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
