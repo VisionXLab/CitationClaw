@@ -8,12 +8,12 @@ class AppConfig(BaseModel):
     """应用配置模型"""
     # ScraperAPI配置
     scraper_api_keys: List[str] = Field(
-        default_factory=lambda: ["第一个api_key", "第二个api_key", "第三个api_key"],
+        default_factory=list,
         description="ScraperAPI的API Keys列表"
     )
 
     # OpenAI兼容API配置
-    openai_api_key: str = Field(default="V-API的api_key", description="OpenAI兼容的API Key")
+    openai_api_key: str = Field(default="", description="OpenAI兼容的API Key")
     openai_base_url: str = Field(default="https://api.gpt.ge/v1/", description="API Base URL")
     openai_model: str = Field(default="gemini-3-flash-preview-search", description="模型名称")
 
@@ -55,7 +55,7 @@ class AppConfig(BaseModel):
     )
 
     # 二次筛选大佬配置
-    enable_renowned_scholar_filter: bool = Field(default=False, description="是否启用二次筛选重要学者")
+    enable_renowned_scholar_filter: bool = Field(default=True, description="是否启用二次筛选重要学者")
     renowned_scholar_model: str = Field(default="gpt-5-nano", description="二次筛选使用的模型（cheaper model）")
     renowned_scholar_prompt: str = Field(
         default="这是一篇论文的作者列表信息。现在，请你根据这些作者信息，找到那些国内外享誉盛名的学者。对于中国学者，着重找到那些院士级别、校长等重要行政职务的学者。对于海外学者，着重找到那些来自国际著名研究机构如谷歌、微软，以及有海外院士头衔的学者。若该作者列表里没有这样的重要学者，则输出\"无\"。",
@@ -84,8 +84,8 @@ class AppConfig(BaseModel):
 
 
     # 引用描述搜索配置
-    enable_citing_description: bool = Field(default=False, description="是否搜索引用描述（Phase 4）")
-    enable_dashboard: bool = Field(default=False, description="是否生成 HTML 画像报告（Phase 5）")
+    enable_citing_description: bool = Field(default=True, description="是否搜索引用描述（Phase 4）")
+    enable_dashboard: bool = Field(default=True, description="是否生成 HTML 画像报告（Phase 5）")
     dashboard_model: str = Field(default="gemini-3-flash-preview-nothinking",
                                   description="画像报告 LLM 分析使用的模型")
 

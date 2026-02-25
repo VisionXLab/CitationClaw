@@ -7,6 +7,14 @@ function initIndexPage() {
     const ws = new WebSocketManager();
     ws.connect();
 
+    // API Key 输入框：有内容时切换为 password 类型（遮盖），空时切回 text（显示 placeholder）
+    function _syncApiKeyType(input) {
+        input.type = input.value ? 'password' : 'text';
+    }
+    document.getElementById('idx-openai-key').addEventListener('input', function () {
+        _syncApiKeyType(this);
+    });
+
     // Phase label 映射
     const phaseLabels = {
         'URL': 'Phase 0 · 查找引用链接',
@@ -26,6 +34,7 @@ function initIndexPage() {
             const el = id => document.getElementById(id);
             el('idx-scraper-keys').value = (cfg.scraper_api_keys || []).join(',');
             el('idx-openai-key').value = cfg.openai_api_key || '';
+            _syncApiKeyType(el('idx-openai-key'));
             el('idx-openai-url').value = cfg.openai_base_url || '';
             el('idx-openai-model').value = cfg.openai_model || '';
             el('idx-output-prefix').value = cfg.default_output_prefix || 'paper';
