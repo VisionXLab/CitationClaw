@@ -25,7 +25,6 @@ except ImportError as e:
     print(f"详细信息: {e}")
     print("\n请先安装依赖:")
     print("  pip install -r requirements.txt")
-    print("  python -m playwright install chromium")
     print("=" * 60)
     sys.exit(1)
 
@@ -36,7 +35,7 @@ def print_banner():
     ╔══════════════════════════════════════════════════════════╗
     ║                                                          ║
     ║                 论文被引画像智能体                       ║
-    ║        v1.0 - 基于 FastAPI + Playwright                  ║
+    ║        v2.0 - 基于 FastAPI + ScraperAPI                   ║
     ║                                                          ║
     ╚══════════════════════════════════════════════════════════╝
     """

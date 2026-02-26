@@ -31,6 +31,8 @@ class CitingDescriptionSearcher:
         self.model = model
         self.log = log_callback
         self.progress = progress_callback
+        self._authors_cache: dict[str, str] = {}
+        self._authors_locks: dict[str, asyncio.Lock] = {}
 
     async def _search_fn(self, query: str, retries: int = 3) -> str:
         """调用搜索API（启用web_search_options）"""
@@ -49,14 +51,30 @@ class CitingDescriptionSearcher:
                     self.log(f"⚠️ 搜索API错误: {e}")
                     return "NONE"
 
+    async def _get_target_authors(self, target_title: str) -> str:
+        """获取目标论文作者（带缓存+锁，同一目标论文只查一次LLM）"""
+        if target_title in self._authors_cache:
+            return self._authors_cache[target_title]
+        # 为每个 target_title 创建独立锁，防止并发重复查询
+        if target_title not in self._authors_locks:
+            self._authors_locks[target_title] = asyncio.Lock()
+        async with self._authors_locks[target_title]:
+            # double-check: 可能在等锁期间已被其他协程填充
+            if target_title in self._authors_cache:
+                return self._authors_cache[target_title]
+            q = (f"请搜索论文《{target_title}》的所有作者，"
+                 f"只需按顺序列出姓名，格式：作者1, 作者2, ...")
+            authors = await self._search_fn(q)
+            self._authors_cache[target_title] = authors
+            self.log(f"✅ 已缓存目标论文作者: 《{target_title[:40]}...》")
+            return authors
+
     async def _find_description(
         self, target_title: str, citing_title: str, citing_url: str
     ) -> str:
         """搜索 citing_title 中对 target_title 的引用描述"""
-        # Step1: 找目标论文作者
-        q1 = (f"请搜索论文《{target_title}》的所有作者，"
-              f"只需按顺序列出姓名，格式：作者1, 作者2, ...")
-        authors = await self._search_fn(q1)
+        # Step1: 找目标论文作者（缓存，同一目标论文只查一次LLM）
+        authors = await self._get_target_authors(target_title)
 
         # Step2: 搜索引用描述
         q2 = (

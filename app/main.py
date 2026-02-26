@@ -8,7 +8,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from app.config_manager import ConfigManager, AppConfig
-from app.browser_controller import BrowserController
 from app.task_executor import TaskExecutor
 from app.log_manager import LogManager
 
@@ -24,19 +23,6 @@ templates = Jinja2Templates(directory="templates")
 config_manager = ConfigManager()
 log_manager = LogManager()
 task_executor = TaskExecutor(log_manager)
-browser_controller = None
-captured_url = {"url": None}
-
-
-# ==================== 回调函数 ====================
-async def on_url_captured(url: str):
-    """浏览器URL捕获回调"""
-    captured_url["url"] = url
-    log_manager.success(f"已捕获引用列表URL: {url}")
-    await log_manager._broadcast({
-        "type": "url_captured",
-        "data": {"url": url}
-    })
 
 
 # ==================== 页面路由 ====================
@@ -51,7 +37,7 @@ async def config_page(request: Request):
     """配置页面"""
     return templates.TemplateResponse("config.html", {
         "request": request,
-        "captured_url": captured_url.get("url", "")
+        "captured_url": ""
     })
 
 
@@ -68,29 +54,6 @@ async def results_page(request: Request):
 
 
 # ==================== API路由 ====================
-@app.post("/api/browser/start")
-async def start_browser():
-    """启动浏览器"""
-    global browser_controller
-
-    try:
-        browser_controller = BrowserController(on_url_captured)
-        success = await browser_controller.start()
-
-        if success:
-            return {"status": "success", "message": "浏览器已启动,请在Google Scholar中搜索论文"}
-        else:
-            return JSONResponse(
-                status_code=500,
-                content={"status": "error", "message": "浏览器启动失败"}
-            )
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"status": "error", "message": f"启动失败: {str(e)}"}
-        )
-
-
 @app.get("/api/config")
 async def get_config():
     """获取配置"""
@@ -435,7 +398,4 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """应用关闭时"""
-    global browser_controller
-    if browser_controller:
-        await browser_controller.stop()
     print("应用已关闭")

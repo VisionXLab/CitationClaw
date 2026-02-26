@@ -282,14 +282,14 @@ class AuthorSearcher:
             if 'rate' in error_msg or 'quota' in error_msg or 'limit' in error_msg:
                 self.log_callback("⚠️ API配额超限,等待60秒后重试...")
                 await asyncio.sleep(60)
-                return await self.chat_fn(query, retry_count, max_retries)
+                return await self.format_fn(query, retry_count, max_retries)
 
             # 其他错误（包括超时）- 使用指数退避重试
             if retry_count < max_retries:
                 wait_time = min(2 ** retry_count, 30)  # 指数退避，最多等待30秒
                 self.log_callback(f"⚠️ 格式化输出重量级学者API错误: {e}，{wait_time}秒后重试 (第{retry_count + 1}/{max_retries}次)")
                 await asyncio.sleep(wait_time)
-                return await self.chat_fn(query, retry_count + 1, max_retries)
+                return await self.format_fn(query, retry_count + 1, max_retries)
             else:
                 self.log_callback(f"❌ 格式化输出重量级学者API错误（已达最大重试次数）: {e}")
                 return 'ERROR'

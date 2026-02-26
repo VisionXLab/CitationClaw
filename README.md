@@ -8,7 +8,6 @@
 
 ```bash
 pip install -r requirements.txt
-python -m playwright install chromium
 python start.py
 ```
 
@@ -43,11 +42,6 @@ python start.py
 pip install -r requirements.txt
 ```
 
-### 2. 安装 Playwright 浏览器驱动
-
-```bash
-python -m playwright install chromium
-```
 
 ---
 

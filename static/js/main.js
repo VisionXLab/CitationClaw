@@ -317,46 +317,6 @@ document.addEventListener('DOMContentLoaded', function() {
     initIndexPage();
 
     // ==================== 首页逻辑 ====================
-    const startBrowserBtn = document.getElementById('start-browser-btn');
-    if (startBrowserBtn) {
-        // 初始化WebSocket
-        wsManager = new WebSocketManager();
-        wsManager.connect();
-
-        // 监听URL捕获事件
-        wsManager.on('url_captured', (data) => {
-            console.log('捕获到URL:', data.url);
-            // 跳转到配置页面
-            window.location.href = '/config';
-        });
-
-        // 启动浏览器按钮
-        startBrowserBtn.addEventListener('click', async () => {
-            startBrowserBtn.disabled = true;
-            startBrowserBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 启动中...';
-
-            try {
-                const response = await fetch('/api/browser/start', { method: 'POST' });
-                const data = await response.json();
-
-                if (data.status === 'success') {
-                    document.getElementById('status-display').innerHTML =
-                        '<span class="badge bg-success fs-6">浏览器已启动</span>';
-                    document.getElementById('waiting-message').style.display = 'block';
-                } else {
-                    alert('启动失败: ' + data.message);
-                    startBrowserBtn.disabled = false;
-                    startBrowserBtn.innerHTML = '<i class="bi bi-play-circle"></i> 启动浏览器';
-                }
-            } catch (error) {
-                console.error('启动浏览器失败:', error);
-                alert('启动失败,请检查控制台');
-                startBrowserBtn.disabled = false;
-                startBrowserBtn.innerHTML = '<i class="bi bi-play-circle"></i> 启动浏览器';
-            }
-        });
-    }
-
     // ==================== 配置页逻辑 ====================
     const configForm = document.getElementById('config-form');
     if (configForm) {
