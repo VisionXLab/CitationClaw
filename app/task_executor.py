@@ -629,6 +629,17 @@ class TaskExecutor:
                     self.log_manager.warning("没有成功处理的论文，任务结束")
                     return
 
+                # verify/specified 模式：报告学者匹配结果
+                if config.citing_description_scope == "specified_only":
+                    scholar_names = [s.strip() for s in config.specified_scholars.split(",") if s.strip()]
+                    if scholar_names:
+                        matched, unmatched = self._match_scholars_in_citing(citing_files, scholar_names)
+                        self.log_manager.info(f"📋 学者匹配结果: {len(matched)} 匹配 / {len(unmatched)} 未找到")
+                        for name, papers in matched.items():
+                            self.log_manager.info(f"  ✅ {name}: {len(papers)} 篇引用论文")
+                        for name in unmatched:
+                            self.log_manager.warning(f"  ❌ {name}: 未引用此论文")
+
             # —— Phase 4：搜索引用描述（可选）——
             citing_desc_excel = excel_file
             if config.enable_citing_description:
@@ -761,6 +772,34 @@ class TaskExecutor:
         filtered_file = result_dir / f"{output_prefix}_filtered_for_scholars.xlsx"
         filtered.to_excel(filtered_file, index=False)
         return filtered_file
+
+    def _match_scholars_in_citing(self, citing_files: list, scholar_names: list) -> tuple:
+        """在 citing papers 的 authors 中匹配学者，返回 (matched, unmatched)"""
+        import json as _json
+        matched = {}   # scholar_name -> list of paper titles
+        for scholar in scholar_names:
+            found = []
+            for cf, _canonical in citing_files:
+                if not cf.exists():
+                    continue
+                for line in cf.read_text(encoding="utf-8").splitlines():
+                    if not line.strip():
+                        continue
+                    try:
+                        data = _json.loads(line)
+                        for page_data in data.values():
+                            for paper in page_data.get("paper_dict", {}).values():
+                                authors = paper.get("authors", {})
+                                for author_name in authors.keys():
+                                    if scholar.lower() in author_name.lower():
+                                        found.append(paper.get("paper_title", ""))
+                                        break
+                    except Exception:
+                        continue
+            if found:
+                matched[scholar] = found
+        unmatched = [s for s in scholar_names if s not in matched]
+        return matched, unmatched
 
     def cancel(self):
         """取消任务"""
