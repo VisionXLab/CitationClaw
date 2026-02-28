@@ -632,12 +632,33 @@ class TaskExecutor:
             # —— Phase 4：搜索引用描述（可选）——
             citing_desc_excel = excel_file
             if config.enable_citing_description:
+                # 根据 citing_description_scope 确定 Phase 4 的输入
+                phase4_input = excel_file
+                if config.citing_description_scope == "renowned_only" and not config.skip_author_search:
+                    self.log_manager.info("📋 Phase 4 范围: 仅院士/Fellow论文")
+                    import pandas as pd
+                    all_renowned_file = excel_file.with_stem(excel_file.stem + "_all_renowned_scholar")
+                    if all_renowned_file.exists():
+                        phase4_input = all_renowned_file
+                        df_full = pd.read_excel(excel_file)
+                        df_renowned = pd.read_excel(all_renowned_file)
+                        self.log_manager.info(f"  → 缩减至 {len(df_renowned)} 篇（原 {len(df_full)} 篇）")
+                    else:
+                        self.log_manager.warning("⚠️ 未找到著名学者文件，将搜索全部论文")
+                elif config.citing_description_scope == "specified_only":
+                    self.log_manager.info("📋 Phase 4 范围: 仅指定学者论文")
+                    scholar_names = [s.strip() for s in config.specified_scholars.split(",") if s.strip()]
+                    if scholar_names:
+                        phase4_input = self._filter_by_scholars(excel_file, scholar_names, result_dir, output_prefix)
+                    else:
+                        self.log_manager.warning("⚠️ 未指定学者名单，将搜索全部论文")
+
                 citing_desc_excel = result_dir / f"{output_prefix}_results_with_citing_desc.xlsx"
                 if config.test_mode:
                     # 测试模式：直接添加伪造引用描述，不调用 LLM
                     self.log_manager.info("🧪 [测试模式] Phase 4: 注入伪造引用描述")
                     import pandas as pd
-                    df = pd.read_excel(excel_file)
+                    df = pd.read_excel(phase4_input)
                     fake_descs = [
                         "该论文在 Related Work 部分明确引用了目标论文，指出其在自注意力机制方面的奠基性贡献，并以此为基础展开研究。",
                         "Introduction 章节中正面引用目标论文，称其为'近年来最具影响力的工作之一'，并借鉴其架构设计思路。",
@@ -662,7 +683,7 @@ class TaskExecutor:
                         progress_callback=self.log_manager.update_progress,
                     )
                     await desc_searcher.search(
-                        input_excel=excel_file,
+                        input_excel=phase4_input,
                         output_excel=citing_desc_excel,
                         parallel_workers=config.parallel_author_search,
                         cancel_check=lambda: self.should_cancel,
@@ -720,6 +741,25 @@ class TaskExecutor:
             raise
         finally:
             self.is_running = False
+
+    def _filter_by_scholars(self, excel_file: Path, scholar_names: list, result_dir: Path, output_prefix: str) -> Path:
+        """从 Excel 中过滤出含指定学者的行"""
+        import pandas as pd
+        df = pd.read_excel(excel_file)
+        mask = df.apply(lambda row: any(
+            scholar.lower() in str(row.get('Searched Author-Affiliation', '') or '').lower() or
+            scholar.lower() in str(row.get('Authors_with_Profile', '') or '').lower() or
+            scholar.lower() in str(row.get('Paper_Title', '') or '').lower()
+            for scholar in scholar_names
+        ), axis=1)
+        filtered = df[mask]
+        self.log_manager.info(f"  → 匹配到 {len(filtered)}/{len(df)} 篇论文")
+        if filtered.empty:
+            self.log_manager.warning("⚠️ 未匹配到任何论文，将搜索全部论文")
+            return excel_file
+        filtered_file = result_dir / f"{output_prefix}_filtered_for_scholars.xlsx"
+        filtered.to_excel(filtered_file, index=False)
+        return filtered_file
 
     def cancel(self):
         """取消任务"""
