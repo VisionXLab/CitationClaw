@@ -7,6 +7,7 @@ from core.author_searcher import AuthorSearcher
 from core.exporter import ResultExporter
 from app.log_manager import LogManager
 from app.config_manager import AppConfig
+from app.cost_tracker import CostTracker
 
 
 class TaskExecutor:
@@ -407,11 +408,25 @@ class TaskExecutor:
         self.is_running = True
         self.should_cancel = False
 
+        # 初始化费用追踪器
+        cost_tracker = CostTracker()
+
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             result_dir = Path(f"data/result-{timestamp}")
             result_dir.mkdir(parents=True, exist_ok=True)
             self.log_manager.info(f"📁 结果目录: {result_dir}")
+
+            # 运行前快照 LLM 额度
+            self.log_manager.info(f"📊 [DEBUG] api_access_token={repr(config.api_access_token[:8] + '...' if config.api_access_token else '')}, api_user_id={repr(config.api_user_id)}")
+            if config.api_access_token and config.api_user_id:
+                self.log_manager.info("📊 正在查询 LLM API 额度（运行前）...")
+                await cost_tracker.snapshot_before(
+                    config.openai_base_url, config.api_access_token, config.api_user_id
+                )
+                if cost_tracker.llm_quota_before is not None:
+                    remaining = cost_tracker.llm_quota_before / 500_000
+                    self.log_manager.info(f"📊 当前剩余额度: {remaining:.2f} 实际额度 (≈ ¥{remaining * 2:.2f})")
 
             # 构建别名归一化映射：所有搜索标题 → 正式标题
             alias_to_canonical: dict[str, str] = {}
@@ -459,6 +474,7 @@ class TaskExecutor:
                     log_callback=self.log_manager.info,
                     retry_max_attempts=config.retry_max_attempts,
                     retry_intervals=config.retry_intervals,
+                    cost_tracker=cost_tracker,
                 )
 
                 for i, (title, canonical) in enumerate(all_search_titles):
@@ -492,6 +508,7 @@ class TaskExecutor:
                         session=config.scraper_session,
                         no_filter=config.scholar_no_filter,
                         geo_rotate=config.scraper_geo_rotate,
+                        cost_tracker=cost_tracker,
                     )
                     citing_file = result_dir / f"{paper_slug}_citing.jsonl"
                     await scraper.scrape(
@@ -734,17 +751,41 @@ class TaskExecutor:
                     skip_citing_analysis=config.dashboard_skip_citing_analysis,
                 )
 
+            # 运行后快照 LLM 额度
+            if config.api_access_token and config.api_user_id:
+                self.log_manager.info("📊 正在查询 LLM API 额度（运行后）...")
+                await cost_tracker.snapshot_after(
+                    config.openai_base_url, config.api_access_token, config.api_user_id
+                )
+
+            # 生成费用摘要
+            cost_summary = cost_tracker.get_summary()
+
             self.log_manager.success("=" * 50)
             self.log_manager.success("✅ 全部完成!")
             self.log_manager.success(f"📊 Excel: {excel_file}")
             self.log_manager.success(f"📋 JSON:  {json_file}")
             if html_file:
                 self.log_manager.success(f"📊 Dashboard: {html_file}")
+
+            # 日志输出费用摘要
+            self.log_manager.info("=" * 50)
+            self.log_manager.info("💰 费用摘要")
+            self.log_manager.info(f"  ScraperAPI: {cost_summary['scraper_credits']} credits / {cost_summary['scraper_requests']} 次请求 (≈ ${cost_summary['scraper_cost_usd']:.4f})")
+            if cost_summary.get("llm_tracked"):
+                self.log_manager.info(f"  LLM API: {cost_summary['llm_quota_consumed']:.4f} 实际额度 (≈ ¥{cost_summary['llm_cost_rmb']:.2f})")
+                self.log_manager.info(f"  LLM 剩余: {cost_summary['llm_remaining']:.2f} 实际额度 (≈ ¥{cost_summary['llm_remaining_rmb']:.2f})")
+                self.log_manager.info("  ⚠️ LLM 额度通过运行前后差值计算，可能包含同时段其他消耗")
+            else:
+                self.log_manager.info("  LLM API: 未配置系统令牌，无法追踪额度消耗")
+            self.log_manager.info("=" * 50)
+
             self.log_manager.success("=" * 50)
             await self.log_manager._broadcast({"type": "all_done", "data": {
                 "excel": str(excel_file),
                 "json": str(json_file),
                 "dashboard": str(html_file) if html_file else None,
+                "cost_summary": cost_summary,
             }})
 
         except Exception as e:

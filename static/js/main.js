@@ -291,6 +291,8 @@ async function loadConfig() {
         if (el('enable-author-verification')) el('enable-author-verification').checked = config.enable_author_verification || false;
         if (el('author-verify-model')) el('author-verify-model').value = config.author_verify_model || 'gemini-3-pro-preview-search';
         if (el('author-verify-prompt')) el('author-verify-prompt').value = config.author_verify_prompt || '';
+        if (el('api-access-token')) el('api-access-token').value = config.api_access_token || '';
+        if (el('api-user-id')) el('api-user-id').value = config.api_user_id || '';
 
         // Toggle visibility for sub-config sections
         var renownedScholarConfig = el('renowned-scholar-config');
@@ -429,7 +431,9 @@ function collectConfig() {
         renowned_scholar_prompt: document.getElementById('renowned-scholar-prompt').value,
         enable_author_verification: document.getElementById('enable-author-verification').checked,
         author_verify_model: document.getElementById('author-verify-model').value,
-        author_verify_prompt: document.getElementById('author-verify-prompt').value
+        author_verify_prompt: document.getElementById('author-verify-prompt').value,
+        api_access_token: document.getElementById('api-access-token').value,
+        api_user_id: document.getElementById('api-user-id').value
     };
 }
 
@@ -514,6 +518,8 @@ function initIndexPage() {
             document.getElementById('idx-specified-scholars-row').style.display =
                 (tier === 'specified' || tier === 'verify') ? 'block' : 'none';
             el('idx-dashboard-model').value = cfg.dashboard_model || 'gemini-3-flash-preview-nothinking';
+            el('idx-api-access-token').value = cfg.api_access_token || '';
+            el('idx-api-user-id').value = cfg.api_user_id || '';
         } catch (e) {
             console.error('加载配置失败:', e);
         }
@@ -543,10 +549,15 @@ function initIndexPage() {
             specified_scholars: el('idx-specified-scholars').value,
             dashboard_skip_citing_analysis: el('idx-service-tier').value === 'minimal',
             dashboard_model: el('idx-dashboard-model').value,
+            api_access_token: el('idx-api-access-token').value,
+            api_user_id: el('idx-api-user-id').value,
         };
         try {
             const cfgResp = await fetch('/api/config');
             const existing = await cfgResp.json();
+            // 费用追踪字段：空值不覆盖已有配置
+            if (!body.api_access_token && existing.api_access_token) delete body.api_access_token;
+            if (!body.api_user_id && existing.api_user_id) delete body.api_user_id;
             const merged = Object.assign({}, existing, body);
             const resp = await fetch('/api/config', {
                 method: 'POST',
@@ -631,6 +642,26 @@ function initIndexPage() {
             return;
         }
         await saveIndexConfig();
+
+        // 预检查 LLM 余额
+        try {
+            var quotaResp = await fetch('/api/quota/check');
+            var quotaData = await quotaResp.json();
+            if (quotaData.configured && quotaData.remaining !== undefined) {
+                appendIndexLog({
+                    timestamp: new Date().toISOString(),
+                    level: 'INFO',
+                    message: '📊 LLM 当前余额: ' + quotaData.remaining + ' 实际额度 (≈ ¥' + quotaData.remaining_rmb + ')'
+                });
+            } else if (quotaData.configured && quotaData.error) {
+                appendIndexLog({
+                    timestamp: new Date().toISOString(),
+                    level: 'WARNING',
+                    message: '📊 LLM 余额查询失败: ' + quotaData.error
+                });
+            }
+        } catch (e) {}
+
         const outputPrefix = document.getElementById('idx-output-prefix').value || 'paper';
 
         runBtn.disabled = true;
@@ -821,6 +852,28 @@ function initIndexPage() {
                     <i class="bi bi-eye"></i> 查看报告
                 </a>
             </div>`;
+        }
+
+        // 费用摘要卡片
+        if (data && data.cost_summary) {
+            var cs = data.cost_summary;
+            var costRows = '';
+            costRows += '<tr><td>ScraperAPI 消耗积分</td><td>' + cs.scraper_credits + ' credits</td></tr>';
+            costRows += '<tr><td>ScraperAPI 请求次数</td><td>' + cs.scraper_requests + ' 次</td></tr>';
+            costRows += '<tr><td>ScraperAPI 估算费用</td><td>$' + cs.scraper_cost_usd.toFixed(4) + ' <span style="font-size:10px;color:var(--light)">(按 $49/100k credits)</span></td></tr>';
+            if (cs.llm_tracked) {
+                costRows += '<tr><td>LLM API 消耗额度</td><td>' + cs.llm_quota_consumed.toFixed(4) + ' 实际额度 ≈ ¥' + cs.llm_cost_rmb.toFixed(2) + '</td></tr>';
+                costRows += '<tr><td>LLM API 剩余额度</td><td>' + cs.llm_remaining.toFixed(2) + ' 实际额度 ≈ ¥' + cs.llm_remaining_rmb.toFixed(2) + '</td></tr>';
+            }
+            html += '<div class="cost-summary-card">'
+                + '<div class="cost-summary-header"><i class="bi bi-coin"></i> 本次运行费用摘要</div>'
+                + '<table class="cost-summary-table"><tbody>' + costRows + '</tbody></table>';
+            if (cs.llm_tracked) {
+                html += '<div class="cost-summary-note">⚠️ LLM 额度通过运行前后差值计算（API 限制），可能包含同时段其他消耗。1 实际额度 = 2 RMB（默认 api.gpt.ge 计价）。</div>';
+            } else {
+                html += '<div class="cost-summary-note">💡 配置「系统令牌」和「用户ID」后可追踪 LLM API 额度消耗。在 API 中转站个人中心获取。</div>';
+            }
+            html += '</div>';
         }
 
         // Fallback

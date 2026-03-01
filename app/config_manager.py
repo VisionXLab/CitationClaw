@@ -124,6 +124,10 @@ class AppConfig(BaseModel):
     dashboard_model: str = Field(default="gemini-3-flash-preview-nothinking",
                                  description="画像报告 LLM 分析使用的模型")
 
+    # 费用追踪配置
+    api_access_token: str = Field(default="", description="API中转站系统令牌（用于查询额度，在个人中心获取）")
+    api_user_id: str = Field(default="", description="API中转站用户数字ID（在个人中心查看）")
+
 
 class ConfigManager:
     def __init__(self, config_path: str = "config.json"):

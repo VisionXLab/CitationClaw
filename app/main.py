@@ -97,6 +97,8 @@ class ConfigUpdate(BaseModel):
     specified_scholars: str = ""
     dashboard_skip_citing_analysis: bool = False
     dashboard_model: str = "gemini-3-flash-preview-nothinking"
+    api_access_token: str = ""
+    api_user_id: str = ""
 
 
 @app.get("/api/presets")
@@ -220,6 +222,25 @@ class PaperInput(BaseModel):
 class RunRequest(BaseModel):
     papers: List[PaperInput]   # 每篇论文：正式标题 + 曾用名列表
     output_prefix: str = "paper"
+
+
+@app.get("/api/quota/check")
+async def check_quota():
+    """预检查 LLM API 余额"""
+    config = config_manager.get()
+    if not config.api_access_token or not config.api_user_id:
+        return {"configured": False, "message": "未配置系统令牌或用户ID"}
+    from app.cost_tracker import CostTracker
+    ct = CostTracker()
+    result = await ct.query_llm_quota(config.openai_base_url, config.api_access_token, config.api_user_id)
+    if result:
+        remaining = result["quota"] / 500_000
+        return {
+            "configured": True,
+            "remaining": round(remaining, 2),
+            "remaining_rmb": round(remaining * 2, 2),
+        }
+    return {"configured": True, "error": "查询失败，令牌可能无效"}
 
 
 @app.post("/api/run")

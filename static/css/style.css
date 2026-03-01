@@ -664,6 +664,46 @@ body {
   color: var(--muted);
 }
 
+/* ─── Cost Summary ─── */
+.cost-summary-card {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+}
+.cost-summary-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: #92400e;
+  margin-bottom: 10px;
+}
+.cost-summary-table {
+  width: 100%;
+  font-size: 12.5px;
+  border-collapse: collapse;
+}
+.cost-summary-table td {
+  padding: 5px 0;
+  color: var(--text);
+  border-bottom: 1px solid #fde68a;
+}
+.cost-summary-table td:first-child {
+  color: var(--muted);
+  width: 45%;
+}
+.cost-summary-table td:last-child {
+  font-weight: 500;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.cost-summary-table tr:last-child td { border-bottom: none; }
+.cost-summary-note {
+  margin-top: 10px;
+  font-size: 11px;
+  color: #92400e;
+  line-height: 1.6;
+}
+
 /* ─── Save indicator ─── */
 #idx-save-indicator {
   font-size: 11px;

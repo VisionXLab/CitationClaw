@@ -36,11 +36,13 @@ data/json/*.json
 *.tmp
 *.log
 nul
-
 # 配置文件（包含敏感信息）
 config.json
-
+data
+debug
 # Claude Code
 .claude/
-debug
 .playwright-mcp
+skill-output
+ccss-dock-widget-workspace/
+project-flow-analyzer.skill

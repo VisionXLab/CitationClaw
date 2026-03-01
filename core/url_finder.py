@@ -17,12 +17,14 @@ class PaperURLFinder:
         log_callback: Optional[Callable] = None,
         retry_max_attempts: int = 3,
         retry_intervals: str = "5,10,20",
+        cost_tracker=None,
     ):
         self.api_keys = api_keys
         self.key_idx = 0
         self.log = log_callback or print
         self.retry_max_attempts = retry_max_attempts
         self.retry_intervals = [int(x) for x in retry_intervals.split(",")]
+        self.cost_tracker = cost_tracker
 
     def _next_key(self) -> str:
         key = self.api_keys[self.key_idx % len(self.api_keys)]
@@ -40,6 +42,10 @@ class PaperURLFinder:
                 )
                 resp = requests.get(api_url, timeout=60)
                 if resp.status_code == 200:
+                    if self.cost_tracker:
+                        credit_cost = int(resp.headers.get('sa-credit-cost', 0))
+                        if credit_cost > 0:
+                            self.cost_tracker.add_scraper_credits(credit_cost)
                     return resp.text
                 self.log(f"HTTP {resp.status_code}，尝试 {attempt+1}/{self.retry_max_attempts}")
             except Exception as e:

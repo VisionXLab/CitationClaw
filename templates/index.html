@@ -146,6 +146,24 @@
             placeholder="gemini-3-flash-preview-nothinking">
         <div class="form-text">推荐使用非 search 模型，与上方 Search Model 独立</div>
       </div>
+      <div class="col-12" style="margin-top:8px">
+        <label class="form-label" style="font-size:12.5px">
+          <i class="bi bi-coin" style="color:var(--amber)"></i> 费用追踪
+          <span style="color:var(--light);font-weight:400;font-size:11px;margin-left:4px">
+            配置后可在运行结束时查看 LLM API 额度消耗。在中转站个人中心获取。
+          </span>
+        </label>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <input type="text" id="idx-api-access-token" class="form-control form-control-sm"
+              placeholder="系统令牌（个人中心 → 生成令牌）" autocomplete="off">
+          </div>
+          <div class="col-md-3">
+            <input type="text" id="idx-api-user-id" class="form-control form-control-sm"
+              placeholder="用户数字 ID">
+          </div>
+        </div>
+      </div>
       <div class="col-12" style="display:flex;align-items:center;gap:10px;justify-content:flex-end">
         <button id="idx-save-config-btn" class="btn-agent-sm">
           <i class="bi bi-check2"></i> 保存配置
@@ -581,6 +599,39 @@
                             </div>
                             <div class="form-text">
                                 最高质量代理，优先使用此项时Premium将被忽略
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">费用追踪 <span class="text-muted small">(可选)</span></h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="api-access-token" class="form-label">
+                                系统令牌 <span class="text-muted small">(在中转站个人中心生成)</span>
+                            </label>
+                            <input
+                                type="text"
+                                class="form-control font-monospace"
+                                id="api-access-token"
+                                placeholder="点击「生成令牌」获取"
+                                autocomplete="off"
+                            >
+                            <div class="form-text">
+                                用于查询 LLM API 额度变化，不可用于请求模型
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="api-user-id" class="form-label">
+                                用户数字 ID <span class="text-muted small">(在个人中心查看)</span>
+                            </label>
+                            <input
+                                type="text"
+                                class="form-control font-monospace"
+                                id="api-user-id"
+                                placeholder="如 49573"
+                            >
+                            <div class="form-text">
+                                查询额度时需要传入，两项都填写后运行结束将展示 LLM 费用摘要
                             </div>
                         </div>
                     </div>

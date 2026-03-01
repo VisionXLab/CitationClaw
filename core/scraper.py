@@ -41,7 +41,7 @@ class GoogleScholarScraper:
                  debug_mode: bool = False, premium: bool = False, ultra_premium: bool = False,
                  retry_max_attempts: int = 3, retry_intervals: str = "5,10,20",
                  session: bool = False, no_filter: bool = False, geo_rotate: bool = False,
-                 dc_retry_max_attempts: int = 5):
+                 dc_retry_max_attempts: int = 5, cost_tracker=None):
         """
         Google Scholar引用列表抓取器
 
@@ -78,6 +78,9 @@ class GoogleScholarScraper:
         self.retry_max_attempts = retry_max_attempts if retry_max_attempts == -1 else max(1, retry_max_attempts)
         self.retry_intervals = self._parse_intervals(retry_intervals)
         self.dc_retry_max_attempts = dc_retry_max_attempts if dc_retry_max_attempts == -1 else max(1, dc_retry_max_attempts)
+
+        # 费用追踪
+        self.cost_tracker = cost_tracker
 
         # 错误跟踪
         self.consecutive_failures = 0  # 连续失败次数
@@ -179,6 +182,11 @@ class GoogleScholarScraper:
 
                 if r.status_code == 200:
                     self.consecutive_failures = 0  # 重置连续失败计数
+                    # 追踪 ScraperAPI 积分消耗
+                    if self.cost_tracker:
+                        credit_cost = int(r.headers.get('sa-credit-cost', 0))
+                        if credit_cost > 0:
+                            self.cost_tracker.add_scraper_credits(credit_cost)
                     return r.text
                 else:
                     self.log_callback(f"请求失败(尝试 {attempt + 1}/{max_retries}), 状态码: {r.status_code}")
