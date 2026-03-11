@@ -20,11 +20,9 @@
 
 | 文档 | 说明 |
 |------|------|
-| [📊 画像报告示例](data/result-template/paper_dashboard.html) | 真实输出样例——下载后用浏览器打开，感受最终报告效果 |
-| [📖 深度使用报告](use-report.html) | 一位用户用 CitationAgent 分析自己论文被引情况的完整体验记录 |
-| [🔧 技术架构报告](technical-report.html) | 系统架构、核心模块与实现细节，适合开发者或希望深入了解原理的读者 |
-
-> 以上 HTML 文件克隆仓库后在本地用浏览器直接打开即可，无需任何服务器。
+| [📊 画像报告示例](https://htmlpreview.github.io/?https://github.com/VisionXLab/CitationAgent/blob/main/data/result-template/paper_dashboard.html) | 真实输出样例，点击即可在线预览最终报告效果 |
+| [📖 深度使用报告](https://htmlpreview.github.io/?https://github.com/VisionXLab/CitationAgent/blob/main/use-report.html) | 一位用户用 CitationAgent 分析自己论文被引情况的完整体验记录 |
+| [🔧 技术架构报告](https://htmlpreview.github.io/?https://github.com/VisionXLab/CitationAgent/blob/main/technical-report.html) | 系统架构、核心模块与实现细节，适合开发者或希望深入了解原理的读者 |
 
 ---
 
