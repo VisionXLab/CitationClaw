@@ -26,7 +26,8 @@ data/result-*/
 data/cache/
 config.json
 .superpowers/
-homepage-preview.png
+homepage-preview*.png
 teaser-full.png
 teaser-charts.png
+docs/assets/ui-full.png
 .playwright-mcp/

@@ -8,24 +8,23 @@
   <link rel="icon" href="assets/icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
       --accent: #2563eb;
-      --accent-light: #eff6ff;
+      --accent-dark: #1d4ed8;
       --text: #111827;
       --muted: #6b7280;
       --border: #e5e7eb;
       --bg: #ffffff;
       --bg-alt: #f9fafb;
-      --radius: 10px;
-      --max: 960px;
+      --max: 980px;
+      --max-wide: 1100px;
     }
 
     html { scroll-behavior: smooth; }
-
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       color: var(--text);
@@ -37,334 +36,441 @@
     /* ── Nav ── */
     nav {
       position: sticky; top: 0; z-index: 100;
-      background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(12px);
+      background: rgba(255,255,255,0.94);
+      backdrop-filter: blur(14px);
       border-bottom: 1px solid var(--border);
     }
     .nav-inner {
-      max-width: var(--max);
+      max-width: var(--max-wide);
       margin: 0 auto;
-      padding: 0 24px;
-      height: 56px;
+      padding: 0 32px;
+      height: 54px;
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
     .nav-brand {
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; gap: 9px;
       text-decoration: none; color: var(--text);
     }
-    .nav-brand img { width: 28px; height: 28px; border-radius: 6px; }
-    .nav-brand-name { font-weight: 600; font-size: 15px; }
-    .nav-links { display: flex; gap: 24px; }
+    .nav-brand img { width: 26px; height: 26px; border-radius: 5px; }
+    .nav-brand-name { font-weight: 600; font-size: 14.5px; letter-spacing: -.01em; }
+    .nav-links { display: flex; gap: 28px; }
     .nav-links a {
       text-decoration: none; color: var(--muted);
-      font-size: 13.5px; font-weight: 500;
+      font-size: 13px; font-weight: 500;
       transition: color .15s;
     }
     .nav-links a:hover { color: var(--text); }
+    @media (max-width: 640px) { .nav-links { display: none; } }
 
-    /* ── Layout ── */
-    .container { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+    /* ── Container ── */
+    .container { max-width: var(--max); margin: 0 auto; padding: 0 32px; }
 
-    /* ── Hero ── */
+    /* ─────────────────────────────────────────
+       HERO — academic paper style
+    ───────────────────────────────────────── */
     .hero {
-      padding: 72px 24px 56px;
+      padding: 64px 32px 48px;
       text-align: center;
       max-width: var(--max);
       margin: 0 auto;
     }
-    .hero-eyebrow {
-      display: inline-block;
-      font-size: 11.5px;
-      font-weight: 600;
-      letter-spacing: .12em;
-      text-transform: uppercase;
+    .hero-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 600;
+      letter-spacing: .12em; text-transform: uppercase;
       color: var(--accent);
-      background: var(--accent-light);
-      padding: 4px 12px;
-      border-radius: 20px;
-      margin-bottom: 20px;
+      background: #eff6ff;
+      padding: 4px 12px; border-radius: 20px;
+      margin-bottom: 24px;
     }
     .hero h1 {
-      font-size: clamp(28px, 5vw, 42px);
+      font-size: clamp(26px, 4.5vw, 42px);
       font-weight: 700;
-      line-height: 1.2;
-      letter-spacing: -.02em;
+      line-height: 1.15;
+      letter-spacing: -.025em;
       margin-bottom: 8px;
+      color: var(--text);
     }
     .hero-subtitle {
       font-size: 16px;
       color: var(--muted);
-      margin-bottom: 28px;
       font-weight: 400;
+      font-style: italic;
+      margin-bottom: 24px;
     }
-    .hero-desc {
-      font-size: 15.5px;
+    /* authors */
+    .hero-authors {
+      font-size: 14px;
       color: #374151;
-      max-width: 640px;
-      margin: 0 auto 32px;
-      line-height: 1.75;
+      margin-bottom: 8px;
+      display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; align-items: center;
     }
+    .hero-authors a { color: var(--accent); text-decoration: none; }
+    .hero-authors a:hover { text-decoration: underline; }
+    .hero-authors .sep { color: var(--border); }
+    .hero-affil {
+      font-size: 12.5px; color: var(--muted);
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      margin-bottom: 28px;
+    }
+    .hero-affil svg { width: 14px; height: 14px; opacity: .6; }
+    /* link buttons */
     .hero-buttons {
-      display: flex;
-      gap: 10px;
-      justify-content: center;
-      flex-wrap: wrap;
-      margin-bottom: 16px;
+      display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+      margin-bottom: 10px;
     }
     .btn {
       display: inline-flex; align-items: center; gap: 6px;
-      padding: 9px 18px;
-      border-radius: 8px;
-      font-size: 13.5px; font-weight: 500;
+      padding: 8px 16px;
+      border-radius: 7px;
+      font-size: 13px; font-weight: 500;
       text-decoration: none;
       transition: all .15s;
       border: 1.5px solid transparent;
+      white-space: nowrap;
     }
-    .btn-primary {
-      background: var(--accent); color: #fff;
-      border-color: var(--accent);
-    }
-    .btn-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
-    .btn-outline {
-      background: transparent; color: var(--text);
-      border-color: var(--border);
-    }
+    .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+    .btn-outline { background: transparent; color: var(--text); border-color: var(--border); }
     .btn-outline:hover { border-color: #9ca3af; background: var(--bg-alt); }
-    .btn svg { width: 15px; height: 15px; flex-shrink: 0; }
-    .hero-meta { font-size: 12.5px; color: var(--muted); }
-    .hero-meta a { color: var(--accent); text-decoration: none; }
+    .btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+    .btn-sm { padding: 6px 14px; font-size: 12.5px; }
 
-    /* ── Teaser ── */
-    .teaser-wrap {
-      max-width: var(--max);
-      margin: 0 auto 80px;
-      padding: 0 24px;
+    /* ─────────────────────────────────────────
+       TEASER — full-width with caption
+    ───────────────────────────────────────── */
+    .teaser-section {
+      max-width: var(--max-wide);
+      margin: 0 auto 0;
+      padding: 40px 32px 0;
     }
-    .browser-frame {
-      border: 1.5px solid var(--border);
-      border-radius: 12px;
+    .teaser-caption {
+      font-size: 13.5px;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 16px;
+      font-style: italic;
+    }
+    .teaser-caption strong { color: var(--text); font-style: normal; }
+    .teaser-frame {
+      border: 1px solid var(--border);
+      border-radius: 14px;
       overflow: hidden;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.09);
     }
-    .browser-bar {
+    .teaser-topbar {
       background: #f3f4f6;
       padding: 10px 16px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      display: flex; align-items: center; gap: 10px;
       border-bottom: 1px solid var(--border);
     }
-    .browser-dots { display: flex; gap: 5px; }
-    .browser-dot {
-      width: 10px; height: 10px; border-radius: 50%;
+    .tdots { display: flex; gap: 5px; }
+    .tdot { width: 10px; height: 10px; border-radius: 50%; }
+    .tdot:nth-child(1){background:#ef4444}
+    .tdot:nth-child(2){background:#f59e0b}
+    .tdot:nth-child(3){background:#22c55e}
+    .turl {
+      flex: 1; background: #fff;
+      border: 1px solid var(--border); border-radius: 5px;
+      padding: 3px 10px; font-size: 11px; color: var(--muted);
+      max-width: 380px;
     }
-    .browser-dot:nth-child(1) { background: #ef4444; }
-    .browser-dot:nth-child(2) { background: #f59e0b; }
-    .browser-dot:nth-child(3) { background: #22c55e; }
-    .browser-url {
-      flex: 1;
-      background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 5px;
-      padding: 3px 10px;
-      font-size: 11.5px;
-      color: var(--muted);
-      max-width: 340px;
-    }
-    .browser-frame img { width: 100%; display: block; }
+    .teaser-frame img { width: 100%; display: block; }
 
-    /* ── Section ── */
-    section { padding: 72px 0; }
-    section + section { border-top: 1px solid var(--border); }
-    .section-label {
-      font-size: 11px; font-weight: 600; letter-spacing: .12em;
-      text-transform: uppercase; color: var(--accent);
-      margin-bottom: 10px;
-    }
-    .section-title {
-      font-size: clamp(22px, 3.5vw, 30px);
-      font-weight: 700; letter-spacing: -.02em;
-      margin-bottom: 14px; line-height: 1.25;
-    }
-    .section-desc {
-      color: var(--muted); font-size: 15px;
-      max-width: 600px; line-height: 1.7;
-    }
-    .section-header { margin-bottom: 40px; }
-
-    /* ── Abstract ── */
-    .abstract-box {
+    /* ─────────────────────────────────────────
+       TL;DR strip
+    ───────────────────────────────────────── */
+    .tldr-strip {
       background: var(--bg-alt);
-      border: 1px solid var(--border);
-      border-left: 4px solid var(--accent);
-      border-radius: 0 var(--radius) var(--radius) 0;
-      padding: 24px 28px;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 32px;
+      text-align: center;
+      margin-top: 40px;
+    }
+    .tldr-strip p {
+      max-width: var(--max);
+      margin: 0 auto;
       font-size: 15px;
-      line-height: 1.8;
+      line-height: 1.75;
       color: #1f2937;
     }
+    .tldr-strip strong { color: var(--accent); }
 
-    /* ── Features grid ── */
+    /* ─────────────────────────────────────────
+       Section shared styles
+    ───────────────────────────────────────── */
+    section { padding: 72px 0; }
+    .section-label {
+      font-size: 10.5px; font-weight: 600;
+      letter-spacing: .14em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 10px;
+    }
+    .section-title {
+      font-size: clamp(20px, 3vw, 28px);
+      font-weight: 700; letter-spacing: -.02em;
+      line-height: 1.25; margin-bottom: 12px;
+    }
+    .section-desc {
+      color: var(--muted); font-size: 14.5px;
+      max-width: 560px; line-height: 1.7;
+    }
+    .section-header { margin-bottom: 44px; }
+    .divider { border: none; border-top: 1px solid var(--border); }
+
+    /* ─────────────────────────────────────────
+       DEMO SLIDESHOW
+    ───────────────────────────────────────── */
+    .slideshow-section {
+      padding: 72px 0;
+      border-top: 1px solid var(--border);
+    }
+    .slideshow-layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    @media (max-width: 720px) {
+      .slideshow-layout { grid-template-columns: 1fr; }
+      .slide-nav { display: flex; flex-direction: row; gap: 8px; flex-wrap: wrap; }
+    }
+    .slide-nav { display: flex; flex-direction: column; gap: 8px; }
+    .slide-nav-btn {
+      padding: 12px 16px;
+      border-radius: 9px;
+      border: 1.5px solid var(--border);
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+      transition: all .2s;
+      font-family: inherit;
+    }
+    .slide-nav-btn:hover { border-color: #93c5fd; background: #eff6ff; }
+    .slide-nav-btn.active {
+      border-color: var(--accent);
+      background: #eff6ff;
+    }
+    .snb-step {
+      font-size: 10px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--accent);
+      margin-bottom: 4px;
+    }
+    .snb-title { font-size: 13.5px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+    .snb-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .slide-panel { position: relative; }
+    .slide { display: none; }
+    .slide.active { display: block; animation: fadeIn .35s ease; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+    .slide-img-wrap {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+    }
+    .slide-img-wrap img { width: 100%; display: block; }
+    .slide-caption {
+      margin-top: 12px;
+      font-size: 12.5px; color: var(--muted);
+      text-align: center;
+      line-height: 1.5;
+    }
+    .slide-dots {
+      display: flex; gap: 6px;
+      justify-content: center;
+      margin-top: 16px;
+    }
+    .slide-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--border); cursor: pointer;
+      transition: background .2s;
+    }
+    .slide-dot.active { background: var(--accent); }
+
+    /* ─────────────────────────────────────────
+       ABSTRACT
+    ───────────────────────────────────────── */
+    .abstract-box {
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 10px 10px 0;
+      padding: 24px 28px;
+      font-size: 14.5px;
+      line-height: 1.85;
+      color: #1f2937;
+      background: var(--bg-alt);
+    }
+
+    /* ─────────────────────────────────────────
+       FEATURES
+    ───────────────────────────────────────── */
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-      gap: 20px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
     }
+    @media (max-width: 720px) { .features-grid { grid-template-columns: 1fr; } }
+    @media (min-width: 721px) and (max-width: 900px) { .features-grid { grid-template-columns: repeat(2, 1fr); } }
     .feature-card {
-      background: var(--bg-alt);
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius);
-      padding: 22px 24px;
-      transition: box-shadow .2s, border-color .2s;
+      background: var(--bg);
+      padding: 28px 26px;
+      transition: background .15s;
     }
-    .feature-card:hover {
-      box-shadow: 0 4px 16px rgba(0,0,0,0.07);
-      border-color: #d1d5db;
-    }
+    .feature-card:hover { background: #fafbff; }
     .feature-icon {
-      font-size: 24px;
-      margin-bottom: 12px;
+      font-size: 26px;
+      margin-bottom: 14px;
       display: block;
     }
     .feature-title {
-      font-size: 14.5px; font-weight: 600;
-      margin-bottom: 6px;
+      font-size: 14px; font-weight: 600;
+      margin-bottom: 7px; letter-spacing: -.01em;
     }
-    .feature-desc { font-size: 13.5px; color: var(--muted); line-height: 1.6; }
+    .feature-desc { font-size: 13px; color: var(--muted); line-height: 1.65; }
 
-    /* ── Pipeline ── */
-    .pipeline {
+    /* ─────────────────────────────────────────
+       PIPELINE
+    ───────────────────────────────────────── */
+    .pipeline-row {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      grid-template-columns: repeat(4, 1fr);
       gap: 0;
       position: relative;
     }
+    @media (max-width: 640px) { .pipeline-row { grid-template-columns: 1fr 1fr; } }
     .pipeline-step {
-      padding: 20px 20px 20px 0;
+      padding: 24px 20px 24px 0;
       position: relative;
     }
     .pipeline-step:not(:last-child)::after {
       content: '→';
-      position: absolute; right: -4px; top: 26px;
+      position: absolute; right: 2px; top: 28px;
       color: #d1d5db; font-size: 18px;
+      pointer-events: none;
+    }
+    @media (max-width: 640px) {
+      .pipeline-step:nth-child(2)::after { display: none; }
+      .pipeline-step:last-child::after { display: none; }
     }
     .step-num {
-      display: inline-flex;
-      align-items: center; justify-content: center;
-      width: 32px; height: 32px;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 30px; height: 30px;
       background: var(--accent); color: #fff;
-      border-radius: 50%;
-      font-size: 13px; font-weight: 700;
+      border-radius: 50%; font-size: 13px; font-weight: 700;
       margin-bottom: 12px;
-      flex-shrink: 0;
     }
-    .step-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
-    .step-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
+    .step-title { font-size: 13.5px; font-weight: 600; margin-bottom: 6px; }
+    .step-desc { font-size: 12.5px; color: var(--muted); line-height: 1.6; }
 
-    /* ── Demo ── */
-    .demo-grid {
+    /* ─────────────────────────────────────────
+       REPORT EXAMPLES
+    ───────────────────────────────────────── */
+    .example-cards {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 20px;
-      align-items: start;
     }
-    @media (max-width: 640px) { .demo-grid { grid-template-columns: 1fr; } }
-    .demo-img {
+    @media (max-width: 600px) { .example-cards { grid-template-columns: 1fr; } }
+    .example-card {
       border: 1.5px solid var(--border);
-      border-radius: var(--radius);
+      border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      text-decoration: none;
+      color: inherit;
+      transition: box-shadow .2s, border-color .2s;
+      display: block;
     }
-    .demo-img img { width: 100%; display: block; }
+    .example-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.09); border-color: #93c5fd; }
+    .example-card img { width: 100%; display: block; }
+    .example-card-body {
+      padding: 14px 18px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-alt);
+    }
+    .example-card-title { font-size: 13.5px; font-weight: 600; margin-bottom: 3px; }
+    .example-card-desc { font-size: 12px; color: var(--muted); }
+    .example-card-link {
+      font-size: 12px; color: var(--accent);
+      display: flex; align-items: center; gap: 4px;
+      margin-top: 8px;
+    }
 
-    /* ── Install ── */
+    /* ─────────────────────────────────────────
+       INSTALL
+    ───────────────────────────────────────── */
     .code-block {
-      background: #111827;
-      border-radius: var(--radius);
-      padding: 20px 24px;
+      background: #0f172a;
+      border-radius: 10px;
+      padding: 22px 26px;
       overflow-x: auto;
-      font-family: 'SFMono-Regular', Consolas, monospace;
-      font-size: 13.5px;
-      line-height: 1.8;
-    }
-    .code-block .comment { color: #6b7280; }
-    .code-block .cmd { color: #86efac; }
-    .code-block .arg { color: #fde68a; }
-
-    /* ── Community ── */
-    .community-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
-      align-items: start;
-    }
-    @media (max-width: 560px) { .community-grid { grid-template-columns: 1fr; } }
-    .community-card {
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius);
-      padding: 28px;
-      text-align: center;
-    }
-    .community-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
-    .community-card p { font-size: 13.5px; color: var(--muted); margin-bottom: 16px; line-height: 1.6; }
-    .community-card img { width: 160px; height: 160px; object-fit: cover; border-radius: 8px; margin: 0 auto 12px; display: block; }
-    .coming-badge {
-      display: inline-block;
-      background: #fef3c7;
-      color: #92400e;
-      font-size: 11px; font-weight: 600;
-      padding: 3px 8px; border-radius: 4px;
-      text-transform: uppercase; letter-spacing: .06em;
-      margin-bottom: 12px;
-    }
-
-    /* ── Citation ── */
-    .bibtex {
-      background: #111827;
-      border-radius: var(--radius);
-      padding: 20px 24px;
       font-family: 'SFMono-Regular', Consolas, monospace;
       font-size: 13px;
       line-height: 1.9;
-      color: #e5e7eb;
+    }
+    .code-block .cmt { color: #475569; }
+    .code-block .cmd { color: #86efac; }
+    .code-block .arg { color: #fde68a; }
+
+    /* ─────────────────────────────────────────
+       COMMUNITY
+    ───────────────────────────────────────── */
+    .community-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 600px) { .community-row { grid-template-columns: 1fr; } }
+    .comm-card {
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+    }
+    .comm-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .comm-card p { font-size: 13.5px; color: var(--muted); line-height: 1.6; margin-bottom: 16px; }
+    .comm-card img { width: 150px; height: 150px; object-fit: cover; border-radius: 8px; display: block; margin: 0 auto 10px; }
+    .badge-soon {
+      display: inline-block;
+      background: #fef9c3; color: #854d0e;
+      font-size: 10.5px; font-weight: 700;
+      padding: 3px 8px; border-radius: 4px;
+      letter-spacing: .06em; text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    /* ─────────────────────────────────────────
+       CITATION
+    ───────────────────────────────────────── */
+    .bibtex {
+      background: #0f172a;
+      border-radius: 10px;
+      padding: 20px 24px;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      font-size: 12.5px; line-height: 1.9;
+      color: #e2e8f0;
       overflow-x: auto;
       white-space: pre;
     }
-    .bibtex .key { color: #93c5fd; }
-    .bibtex .val { color: #fde68a; }
+    .bibtex .bkey { color: #93c5fd; }
+    .bibtex .bval { color: #fde68a; }
 
-    /* ── Authors ── */
-    .authors {
-      display: flex; gap: 8px; flex-wrap: wrap;
-      font-size: 14px; color: #374151;
-      margin-bottom: 8px;
-    }
-    .author-sep { color: var(--border); }
-    .affil {
-      font-size: 13px; color: var(--muted);
-      display: flex; align-items: center; gap: 6px;
-    }
-
-    /* ── Footer ── */
+    /* ─────────────────────────────────────────
+       FOOTER
+    ───────────────────────────────────────── */
     footer {
-      padding: 32px 24px;
+      padding: 32px;
       border-top: 1px solid var(--border);
       text-align: center;
-      font-size: 13px;
+      font-size: 12.5px;
       color: var(--muted);
     }
     footer a { color: var(--muted); text-decoration: none; }
     footer a:hover { color: var(--text); }
-
-    /* ── Responsive ── */
-    @media (max-width: 640px) {
-      .nav-links { display: none; }
-      .pipeline { grid-template-columns: 1fr; }
-      .pipeline-step::after { display: none; }
-      .features-grid { grid-template-columns: 1fr; }
-    }
   </style>
 </head>
 <body>
@@ -377,104 +483,207 @@
       <span class="nav-brand-name">CitationAgent</span>
     </a>
     <div class="nav-links">
-      <a href="#abstract">概览</a>
+      <a href="#demo">演示</a>
       <a href="#features">功能</a>
-      <a href="#demo">示例</a>
       <a href="#install">安装</a>
       <a href="#citation">引用</a>
+      <a href="https://github.com/VisionXLab/CitationAgent" target="_blank">GitHub</a>
     </div>
   </div>
 </nav>
 
-<!-- ── Hero ── -->
+<!-- ─────────────────────────────────────────
+     HERO
+───────────────────────────────────────── -->
 <div class="hero">
-  <div class="hero-eyebrow">Citation Agent · 被引分析智能体</div>
-  <h1>论文被引<br>画像分析智能体</h1>
+  <div class="hero-tag">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    Citation Intelligence
+  </div>
+  <h1>CitationAgent<br>论文被引画像分析智能体</h1>
   <p class="hero-subtitle">Paper Citation Portrait Analysis Agent</p>
-  <p class="hero-desc">
-    输入论文题目或从 Google Scholar 主页选择，一键自动爬取所有施引文献、识别著名学者背景，生成精美的可视化 HTML 画像报告。
-  </p>
+
+  <div class="hero-authors">
+    <span>Qihao Yang<sup>1</sup></span>
+    <span class="sep">·</span>
+    <span>Ziqian Fan<sup>1</sup></span>
+    <span class="sep">·</span>
+    <span>Xue Yang<sup>1</sup></span>
+  </div>
+  <div class="hero-affil">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span><sup>1</sup> 上海交通大学 VisionXLab@RethinkLab · Shanghai Jiao Tong University</span>
+  </div>
+
   <div class="hero-buttons">
     <a href="https://github.com/VisionXLab/CitationAgent" target="_blank" class="btn btn-primary">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       GitHub
     </a>
-    <a href="https://www.reduct.cn/" target="_blank" class="btn btn-outline">
-      🚀 减论上线中
-    </a>
     <a href="https://visionxlab.github.io/CitationAgent/demo1.html" target="_blank" class="btn btn-outline">
-      📊 查看报告示例
+      📊 报告示例①
     </a>
-  </div>
-  <div class="hero-meta">
-    开发团队：Qihao Yang · Ziqian Fan · Xue Yang&nbsp;&nbsp;|&nbsp;&nbsp;
-    <a href="https://github.com/VisionXLab" target="_blank">上海交通大学 VisionXLab</a>
+    <a href="https://visionxlab.github.io/CitationAgent/demo2.html" target="_blank" class="btn btn-outline">
+      📊 报告示例②
+    </a>
+    <a href="https://visionxlab.github.io/CitationAgent/use-report.html" target="_blank" class="btn btn-outline">
+      📖 使用体验报告
+    </a>
+    <a href="https://www.reduct.cn/" target="_blank" class="btn btn-outline">
+      🚀 减论平台
+    </a>
   </div>
 </div>
 
-<!-- ── Teaser ── -->
-<div class="teaser-wrap">
-  <div class="browser-frame">
-    <div class="browser-bar">
-      <div class="browser-dots">
-        <div class="browser-dot"></div>
-        <div class="browser-dot"></div>
-        <div class="browser-dot"></div>
-      </div>
-      <div class="browser-url">paper_dashboard.html · 被引画像报告</div>
+<!-- ─────────────────────────────────────────
+     TEASER
+───────────────────────────────────────── -->
+<div class="teaser-section">
+  <p class="teaser-caption">被引画像报告输出示例 — 单 HTML 文件，无需服务器，一键分享</p>
+  <div class="teaser-frame">
+    <div class="teaser-topbar">
+      <div class="tdots"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>
+      <div class="turl">paper_dashboard.html · 被引画像报告</div>
     </div>
     <img src="assets/teaser.png" alt="CitationAgent 被引画像报告示例">
   </div>
 </div>
 
-<!-- ── Abstract ── -->
-<section id="abstract">
+<!-- ─────────────────────────────────────────
+     TL;DR
+───────────────────────────────────────── -->
+<div class="tldr-strip">
+  <p>
+    <strong>输入论文题目</strong>，CitationAgent 自动爬取所有施引文献、识别院士 / Fellow 等著名学者并搜索引用原句，<br>
+    最终生成一份含关键词云、引用趋势、国家分布、学者画像的 <strong>精美 HTML 报告</strong>，单文件可直接分享。
+  </p>
+</div>
+
+<!-- ─────────────────────────────────────────
+     DEMO SLIDESHOW
+───────────────────────────────────────── -->
+<section id="demo" class="slideshow-section">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Demo · 交互演示</div>
+      <h2 class="section-title">四步完成完整分析</h2>
+      <p class="section-desc">从输入题目到获得报告，全流程自动化，点击左侧步骤查看界面</p>
+    </div>
+
+    <div class="slideshow-layout">
+      <!-- left nav -->
+      <div class="slide-nav" id="slideNav">
+        <button class="slide-nav-btn active" data-slide="0" onclick="goSlide(0)">
+          <div class="snb-step">Step 1</div>
+          <div class="snb-title">输入论文题目</div>
+          <div class="snb-desc">直接粘贴英文题目，或导入 Google Scholar 主页链接</div>
+        </button>
+        <button class="slide-nav-btn" data-slide="1" onclick="goSlide(1)">
+          <div class="snb-step">Step 2</div>
+          <div class="snb-title">配置 API</div>
+          <div class="snb-desc">填入 ScraperAPI Key 与 OpenAI 兼容 API Key，支持 V-API 等</div>
+        </button>
+        <button class="slide-nav-btn" data-slide="2" onclick="goSlide(2)">
+          <div class="snb-step">Step 3</div>
+          <div class="snb-title">选择分析层级</div>
+          <div class="snb-desc">全面版 / 进阶版 / 标准版，按需平衡深度与成本</div>
+        </button>
+        <button class="slide-nav-btn" data-slide="3" onclick="goSlide(3)">
+          <div class="snb-step">Step 4</div>
+          <div class="snb-title">获取画像报告</div>
+          <div class="snb-desc">下载 paper_dashboard.html，浏览器直接打开，即可分享</div>
+        </button>
+      </div>
+
+      <!-- right panel -->
+      <div class="slide-panel">
+        <div class="slide active" id="slide-0">
+          <div class="slide-img-wrap">
+            <img src="assets/ui-main.png" alt="Step 1 — 输入论文题目界面">
+          </div>
+          <p class="slide-caption">分析界面：支持直接输入题目，或从 Google Scholar 学者主页批量导入 · 支持同时分析多篇</p>
+        </div>
+        <div class="slide" id="slide-1">
+          <div class="slide-img-wrap">
+            <img src="assets/ui-main.png" alt="Step 2 — API 配置">
+          </div>
+          <p class="slide-caption">API 配置区：填入 ScraperAPI Key 与 LLM API Key，支持任意 OpenAI 兼容服务，点击开始分析即自动保存</p>
+        </div>
+        <div class="slide" id="slide-2">
+          <div class="slide-img-wrap">
+            <img src="assets/ui-main.png" alt="Step 3 — 选择分析层级">
+          </div>
+          <p class="slide-caption">服务层级选择：从全面版（逐篇引用描述）到标准版（只需统计画像），灵活控制 token 消耗</p>
+        </div>
+        <div class="slide" id="slide-3">
+          <div class="slide-img-wrap">
+            <img src="assets/teaser-charts.png" alt="Step 4 — 被引画像报告">
+          </div>
+          <p class="slide-caption">输出报告：关键词云 · 引用趋势预测 · 国家/机构分布 · 著名学者列表 · 引用原句 · 综合 Insight</p>
+        </div>
+        <div class="slide-dots" id="slideDots">
+          <div class="slide-dot active" onclick="goSlide(0)"></div>
+          <div class="slide-dot" onclick="goSlide(1)"></div>
+          <div class="slide-dot" onclick="goSlide(2)"></div>
+          <div class="slide-dot" onclick="goSlide(3)"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────
+     ABSTRACT
+───────────────────────────────────────── -->
+<section id="abstract" style="border-top:1px solid var(--border)">
   <div class="container">
     <div class="section-header">
       <div class="section-label">Overview · 概览</div>
       <h2 class="section-title">What is CitationAgent?</h2>
     </div>
     <div class="abstract-box">
-      CitationAgent 是一款面向科研人员的论文被引画像分析智能体。只需输入论文题目（或从 Google Scholar 学者主页批量导入），系统将自动完成：<strong>爬取所有施引文献</strong>、<strong>识别著名学者背景</strong>（院士、Fellow、杰青等）、<strong>搜索引用原句</strong>，最终生成一份包含关键词云、引用趋势、国家分布、学者画像等多维可视化内容的精美 HTML 报告，无需服务器，单文件即可分享。
+      CitationAgent 是一款面向科研人员的论文被引画像分析智能体。只需输入论文题目（或从 Google Scholar 学者主页批量导入），系统将自动完成：<strong>爬取所有施引文献</strong>、<strong>识别著名学者背景</strong>（院士、Fellow、杰青、长江学者等）、<strong>精准检索引用原句</strong>，最终生成一份包含关键词云、引用趋势预测、国家/机构分布、学者画像等多维可视化内容的精美 HTML 报告——无需服务器，单文件即可分享。
       <br><br>
-      CitationAgent is a paper citation portrait analysis agent for researchers. Given a paper title or Google Scholar profile, it automatically crawls all citing papers, identifies renowned scholars (academicians, Fellows, etc.), retrieves citation sentences, and produces a fully self-contained HTML portrait report.
+      CitationAgent is a paper citation portrait analysis agent for researchers. Given a paper title or Google Scholar profile URL, it automatically crawls all citing papers, identifies renowned scholars (academicians, IEEE/ACM Fellows, etc.), retrieves citation sentences, and produces a fully self-contained, shareable HTML portrait report.
     </div>
   </div>
 </section>
 
-<!-- ── Features ── -->
-<section id="features">
+<!-- ─────────────────────────────────────────
+     FEATURES
+───────────────────────────────────────── -->
+<section id="features" style="border-top:1px solid var(--border)">
   <div class="container">
     <div class="section-header">
       <div class="section-label">Features · 核心功能</div>
       <h2 class="section-title">Key Capabilities</h2>
-      <p class="section-desc">从爬取到报告，全流程自动化</p>
+      <p class="section-desc">从爬取到报告，全流程自动化，专为科研人员设计</p>
     </div>
     <div class="features-grid">
       <div class="feature-card">
         <span class="feature-icon">🎓</span>
         <div class="feature-title">著名学者自动识别</div>
-        <div class="feature-desc">自动识别中国科学院/工程院院士、IEEE/ACM/ACL Fellow、国家杰青、长江学者等重量级学者，颜色标注，一目了然。</div>
+        <div class="feature-desc">自动识别中国科学院/工程院院士、IEEE/ACM/ACL Fellow、国家杰青、长江学者等重量级学者，颜色标注高亮，重要引用一目了然。</div>
       </div>
       <div class="feature-card">
         <span class="feature-icon">📊</span>
-        <div class="feature-title">多维可视化报告</div>
-        <div class="feature-desc">关键词云、引用趋势预测、国家/机构分布、学者画像、引用位置与情感分析，单 HTML 文件，无需服务器。</div>
+        <div class="feature-title">多维可视化 HTML 报告</div>
+        <div class="feature-desc">关键词云、引用趋势预测（含 LLM 分析与线性回归）、国家/机构分布、学者画像、引用位置与情感分析——单文件，无需服务器。</div>
       </div>
       <div class="feature-card">
         <span class="feature-icon">🔍</span>
         <div class="feature-title">引用原句精准检索</div>
-        <div class="feature-desc">对施引文献逐篇搜索引用原句，定位所在章节（引言/方法/实验），支持 Markdown 渲染展示。</div>
+        <div class="feature-desc">对施引文献逐篇搜索引用原句，定位所在章节（引言/相关工作/方法/实验），支持 Markdown 渲染展示，可展开查看。</div>
       </div>
       <div class="feature-card">
         <span class="feature-icon">🔁</span>
         <div class="feature-title">断点续爬 · 缓存复用</div>
-        <div class="feature-desc">任务中断后可从断点继续；已搜索过的学者信息自动缓存，多次分析无需重复调用 LLM，大幅降低费用。</div>
+        <div class="feature-desc">任务中断后可从断点继续，已消耗额度不浪费；已搜索过的学者信息自动缓存，多次分析相同文献无需重复调用 LLM。</div>
       </div>
       <div class="feature-card">
         <span class="feature-icon">📈</span>
         <div class="feature-title">突破千篇限制</div>
-        <div class="feature-desc">开启年份遍历模式后，按年份分段爬取并合并去重，高被引论文（如 Transformer、BERT）同样可获取完整数据。</div>
+        <div class="feature-desc">开启年份遍历模式，按年份分段爬取并合并去重，高被引论文（如 Transformer、BERT）同样可获取完整施引数据。</div>
       </div>
       <div class="feature-card">
         <span class="feature-icon">🤖</span>
@@ -485,19 +694,20 @@
   </div>
 </section>
 
-<!-- ── Pipeline ── -->
-<section id="pipeline">
+<!-- ─────────────────────────────────────────
+     PIPELINE
+───────────────────────────────────────── -->
+<section id="pipeline" style="border-top:1px solid var(--border)">
   <div class="container">
     <div class="section-header">
       <div class="section-label">Pipeline · 使用流程</div>
       <h2 class="section-title">How It Works</h2>
-      <p class="section-desc">四步完成完整的被引画像分析</p>
     </div>
-    <div class="pipeline">
+    <div class="pipeline-row">
       <div class="pipeline-step">
         <div class="step-num">1</div>
         <div class="step-title">配置 API</div>
-        <div class="step-desc">填入 ScraperAPI Key 与 OpenAI 兼容 API Key，支持 V-API、OpenAI 等任意服务。</div>
+        <div class="step-desc">填入 ScraperAPI Key 与 OpenAI 兼容 API Key，点击开始即自动保存。</div>
       </div>
       <div class="pipeline-step">
         <div class="step-num">2</div>
@@ -507,49 +717,56 @@
       <div class="pipeline-step">
         <div class="step-num">3</div>
         <div class="step-title">选择层级</div>
-        <div class="step-desc">从全面版到标准版，按需平衡分析深度与 token 消耗，点击开始分析。</div>
+        <div class="step-desc">从全面版到标准版，按需平衡分析深度与 token 消耗，开始分析。</div>
       </div>
       <div class="pipeline-step">
         <div class="step-num">4</div>
         <div class="step-title">获取报告</div>
-        <div class="step-desc">下载 paper_dashboard.html，浏览器直接打开即可查看完整多维画像报告，可直接分享。</div>
+        <div class="step-desc">下载 paper_dashboard.html，浏览器直接打开，单文件即可分享。</div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ── Demo ── -->
-<section id="demo">
+<!-- ─────────────────────────────────────────
+     REPORT EXAMPLES
+───────────────────────────────────────── -->
+<section id="examples" style="border-top:1px solid var(--border)">
   <div class="container">
     <div class="section-header">
-      <div class="section-label">Demo · 报告示例</div>
-      <h2 class="section-title">Report Preview</h2>
-      <p class="section-desc">真实论文的完整被引画像报告截图</p>
+      <div class="section-label">Examples · 报告示例</div>
+      <h2 class="section-title">Live Report Demos</h2>
+      <p class="section-desc">点击卡片在线预览真实论文的完整被引画像报告</p>
     </div>
-    <div class="demo-grid">
-      <div>
-        <div class="demo-img">
-          <img src="assets/teaser.png" alt="报告顶部 — 统计概览">
+    <div class="example-cards">
+      <a href="https://visionxlab.github.io/CitationAgent/demo1.html" target="_blank" class="example-card">
+        <img src="assets/teaser.png" alt="报告示例 ① — 统计概览">
+        <div class="example-card-body">
+          <div class="example-card-title">📊 被引画像报告示例 ①</div>
+          <div class="example-card-desc">关键词云 · 引用趋势 · 国家分布 · 著名学者列表</div>
+          <div class="example-card-link">在线查看 →</div>
         </div>
-        <p style="font-size:12.5px;color:var(--muted);margin-top:8px;text-align:center">统计概览 · Statistical Overview</p>
-      </div>
-      <div>
-        <div class="demo-img">
-          <img src="assets/teaser-charts.png" alt="报告图表 — 地区分布与关键词云">
-        </div>
-        <p style="font-size:12.5px;color:var(--muted);margin-top:8px;text-align:center">地区分布 · 关键词云 · Country Distribution & Keyword Cloud</p>
-      </div>
-    </div>
-    <div style="text-align:center;margin-top:28px">
-      <a href="https://visionxlab.github.io/CitationAgent/demo1.html" target="_blank" class="btn btn-outline">
-        📄 查看完整报告示例 →
       </a>
+      <a href="https://visionxlab.github.io/CitationAgent/demo2.html" target="_blank" class="example-card">
+        <img src="assets/teaser-charts.png" alt="报告示例 ② — 图表详情">
+        <div class="example-card-body">
+          <div class="example-card-title">📊 被引画像报告示例 ②</div>
+          <div class="example-card-desc">另一篇真实论文的完整被引画像报告</div>
+          <div class="example-card-link">在线查看 →</div>
+        </div>
+      </a>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;justify-content:center">
+      <a href="https://visionxlab.github.io/CitationAgent/use-report.html" target="_blank" class="btn btn-outline btn-sm">📖 用户深度使用报告</a>
+      <a href="https://visionxlab.github.io/CitationAgent/technical-report.html" target="_blank" class="btn btn-outline btn-sm">🔧 技术架构报告</a>
     </div>
   </div>
 </section>
 
-<!-- ── Install ── -->
-<section id="install">
+<!-- ─────────────────────────────────────────
+     INSTALL
+───────────────────────────────────────── -->
+<section id="install" style="border-top:1px solid var(--border)">
   <div class="container">
     <div class="section-header">
       <div class="section-label">Installation · 安装</div>
@@ -557,40 +774,41 @@
       <p class="section-desc">需要 Python 3.10+（推荐 3.12）</p>
     </div>
     <div class="code-block">
-      <span class="comment"># 1. 克隆仓库 Clone the repo</span>
+<span class="cmt"># 1. 克隆仓库  Clone the repo</span>
 <span class="cmd">git</span> <span class="arg">clone https://github.com/VisionXLab/CitationAgent.git</span>
 <span class="cmd">cd</span> <span class="arg">CitationAgent</span>
 
-<span class="comment"># 2. 安装依赖 Install dependencies</span>
+<span class="cmt"># 2. 安装依赖  Install dependencies</span>
 <span class="cmd">pip</span> <span class="arg">install -r requirements.txt</span>
 
-<span class="comment"># 3. 启动 Start the web app</span>
+<span class="cmt"># 3. 启动  Start the web app</span>
 <span class="cmd">python</span> <span class="arg">start.py</span>
 
-<span class="comment"># 4. 浏览器访问 Open in browser</span>
-<span class="comment">#    http://127.0.0.1:8000</span></div>
+<span class="cmt"># 4. 浏览器访问  http://127.0.0.1:8000</span></div>
   </div>
 </section>
 
-<!-- ── Community ── -->
-<section id="community">
+<!-- ─────────────────────────────────────────
+     COMMUNITY
+───────────────────────────────────────── -->
+<section id="community" style="border-top:1px solid var(--border)">
   <div class="container">
     <div class="section-header">
       <div class="section-label">Community · 社区</div>
       <h2 class="section-title">Stay Connected</h2>
     </div>
-    <div class="community-grid">
-      <div class="community-card">
+    <div class="community-row">
+      <div class="comm-card">
         <h3>用户交流群</h3>
-        <p>扫码加入用户交流群，获取最新动态、交流使用心得，支持人工代查咨询。</p>
+        <p>扫码加入用户交流群，获取最新动态、交流使用心得，支持<strong>人工代查</strong>咨询。</p>
         <img src="assets/group.jpg" alt="用户交流群二维码">
-        <p style="font-size:12px;color:var(--muted)">扫码加入 · Scan to Join</p>
+        <p style="font-size:12px;color:var(--muted);text-align:center">扫码加入 · Scan to Join</p>
       </div>
-      <div class="community-card">
-        <div class="coming-badge">Coming Soon</div>
-        <h3>减论平台上线</h3>
-        <p>CitationAgent 的更完善版本即将在<strong>减论</strong>上线，提供更强大的功能与更流畅的使用体验，敬请期待！</p>
-        <a href="https://www.reduct.cn/" target="_blank" class="btn btn-outline" style="margin:0 auto">
+      <div class="comm-card">
+        <div class="badge-soon">Coming Soon</div>
+        <h3>减论平台即将上线</h3>
+        <p>CitationAgent 的更完善版本即将在 <strong>减论</strong> 上线，提供更强大的功能与更流畅的使用体验，敬请期待！</p>
+        <a href="https://www.reduct.cn/" target="_blank" class="btn btn-outline" style="display:inline-flex;margin:0">
           🌐 访问减论 reduct.cn
         </a>
       </div>
@@ -598,34 +816,69 @@
   </div>
 </section>
 
-<!-- ── Citation ── -->
-<section id="citation">
+<!-- ─────────────────────────────────────────
+     CITATION
+───────────────────────────────────────── -->
+<section id="citation" style="border-top:1px solid var(--border)">
   <div class="container">
     <div class="section-header">
       <div class="section-label">Citation · 引用</div>
       <h2 class="section-title">Cite This Work</h2>
       <p class="section-desc">如果本工具对您的研究有所帮助，欢迎引用</p>
     </div>
-    <div class="bibtex"><span class="key">@software</span>{citationagent2026,
-  <span class="key">title</span>     = {<span class="val">CitationAgent: Paper Citation Portrait Analysis Agent</span>},
-  <span class="key">author</span>    = {<span class="val">Yang, Qihao and Fan, Ziqian and Yang, Xue</span>},
-  <span class="key">year</span>      = {<span class="val">2026</span>},
-  <span class="key">url</span>       = {<span class="val">https://github.com/VisionXLab/CitationAgent</span>},
-  <span class="key">institution</span>= {<span class="val">Shanghai Jiao Tong University, VisionXLab</span>}
+    <div class="bibtex"><span class="bkey">@software</span>{citationagent2026,
+  <span class="bkey">title</span>     = {<span class="bval">CitationAgent: Paper Citation Portrait Analysis Agent</span>},
+  <span class="bkey">author</span>    = {<span class="bval">Yang, Qihao and Fan, Ziqian and Yang, Xue</span>},
+  <span class="bkey">year</span>      = {<span class="bval">2026</span>},
+  <span class="bkey">url</span>       = {<span class="bval">https://github.com/VisionXLab/CitationAgent</span>},
+  <span class="bkey">institution</span>= {<span class="bval">Shanghai Jiao Tong University, VisionXLab</span>}
 }</div>
   </div>
 </section>
 
-<!-- ── Footer ── -->
+<!-- ─────────────────────────────────────────
+     FOOTER
+───────────────────────────────────────── -->
 <footer>
-  <p style="margin-bottom:6px">
+  <p style="margin-bottom:5px">
     CitationAgent &nbsp;·&nbsp;
     <a href="https://github.com/VisionXLab/CitationAgent" target="_blank">GitHub</a> &nbsp;·&nbsp;
     <a href="https://www.reduct.cn/" target="_blank">减论</a> &nbsp;·&nbsp;
     上海交通大学 VisionXLab@RethinkLab
   </p>
-  <p>Qihao Yang · Ziqian Fan · Xue Yang</p>
+  <p>Qihao Yang · Ziqian Fan · Xue Yang &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; 2026</p>
 </footer>
+
+<script>
+  let currentSlide = 0;
+  const totalSlides = 4;
+  let autoTimer = null;
+
+  function goSlide(n) {
+    // hide current
+    document.getElementById('slide-' + currentSlide).classList.remove('active');
+    document.querySelectorAll('.slide-nav-btn')[currentSlide].classList.remove('active');
+    document.querySelectorAll('.slide-dot')[currentSlide].classList.remove('active');
+    // show new
+    currentSlide = n;
+    document.getElementById('slide-' + currentSlide).classList.add('active');
+    document.querySelectorAll('.slide-nav-btn')[currentSlide].classList.add('active');
+    document.querySelectorAll('.slide-dot')[currentSlide].classList.add('active');
+    resetAuto();
+  }
+
+  function nextSlide() {
+    goSlide((currentSlide + 1) % totalSlides);
+  }
+
+  function resetAuto() {
+    clearInterval(autoTimer);
+    autoTimer = setInterval(nextSlide, 4000);
+  }
+
+  // auto-advance
+  autoTimer = setInterval(nextSlide, 4000);
+</script>
 
 </body>
 </html>
