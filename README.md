@@ -29,10 +29,10 @@
 
 | 文档                                                                                 | 说明 |
 |------------------------------------------------------------------------------------|------|
-| [📊 画像报告示例①](https://visionxlab.github.io/CitationAgent/docs/demo1.html)           | 真实输出样例，点击即可在线预览最终报告效果 |
-| [📊 画像报告示例②](https://visionxlab.github.io/CitationAgent/docs/demo2.html)           | 另一篇真实论文的被引画像报告 |
-| [📖 深度使用报告](https://visionxlab.github.io/CitationAgent/docs/use-report.html)       | 一位用户用 CitationAgent 分析自己论文被引情况的完整体验记录 |
-| [🔧 技术架构报告](https://visionxlab.github.io/CitationAgent/docs/technical-report.html) | 系统架构、核心模块与实现细节，适合开发者或希望深入了解原理的读者 |
+| [📊 画像报告示例①](https://visionxlab.github.io/CitationAgent/demo1.html)           | 真实输出样例，点击即可在线预览最终报告效果 |
+| [📊 画像报告示例②](https://visionxlab.github.io/CitationAgent/demo2.html)           | 另一篇真实论文的被引画像报告 |
+| [📖 深度使用报告](https://visionxlab.github.io/CitationAgent/use-report.html)       | 一位用户用 CitationAgent 分析自己论文被引情况的完整体验记录 |
+| [🔧 技术架构报告](https://visionxlab.github.io/CitationAgent/technical-report.html) | 系统架构、核心模块与实现细节，适合开发者或希望深入了解原理的读者 |
 
 ---
 
