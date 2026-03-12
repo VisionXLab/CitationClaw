@@ -3,6 +3,9 @@
 
 # CitationClaw — 论文被引画像分析🦞
 
+让每一次引用都成为可解释的影响力  
+<em>Turning Every Citation into Explainable Impact</em>
+
   [![🌐 项目主页](https://img.shields.io/badge/🌐-项目主页-blue?style=flat-square)](https://visionxlab.github.io/CitationAgent/)
   ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)
   ![Version](https://img.shields.io/badge/版本-1.0-brightgreen?style=flat-square)
