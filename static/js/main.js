@@ -1,7 +1,7 @@
 // ==================== 论文列表管理 ====================
 (function () {
     let _idCounter = 0;
-    const STORAGE_KEY = 'citation_agent_papers';
+    const STORAGE_KEY = 'citation_claw_papers';
 
     function _saveState() {
         try {

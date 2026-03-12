@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>我用它分析了我的论文被引情况 — CitationAgent 深度使用报告</title>
+<title>我用它分析了我的论文被引情况 — CitationClaw 深度使用报告</title>
 <style>
   /* ─── Reset & Base ─── */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1210,7 +1210,7 @@
   <p class="cover-subtitle">
     一位研究者的真实使用记录：<br>
     基金本子写到"学术影响力"一栏，才意识到自己对被引情况一无所知——<br>
-    <strong>CitationAgent</strong> 在一个下午帮我补上了这块空白。
+    <strong>CitationClaw</strong> 在一个下午帮我补上了这块空白。
   </p>
   <div class="cover-meta">
     <span>📝 作者：AI拟人化某高校助理教授</span>
@@ -1252,7 +1252,7 @@
   </p>
 
   <p>
-    就在那个时候，我的同事发来一条消息，附了一个 GitHub 链接：<strong>CitationAgent</strong>。"你试试这个，能直接告诉你谁引用了你，级别高不高。" 坦率地讲，最初我将信将疑——它真的能自动分析出引用我论文的学者，并且判断那位学者是不是院士、IEEE Fellow？这听起来太理想化了。
+    就在那个时候，我的同事发来一条消息，附了一个 GitHub 链接：<strong>CitationClaw</strong>。"你试试这个，能直接告诉你谁引用了你，级别高不高。" 坦率地讲，最初我将信将疑——它真的能自动分析出引用我论文的学者，并且判断那位学者是不是院士、IEEE Fellow？这听起来太理想化了。
   </p>
 
   <div class="pull-quote">
@@ -1305,7 +1305,7 @@
       <div class="mockup-dot r"></div>
       <div class="mockup-dot y"></div>
       <div class="mockup-dot g"></div>
-      <span class="mockup-titlebar-label">CitationAgent · 论文被引画像分析 · http://127.0.0.1:8000</span>
+      <span class="mockup-titlebar-label">CitationClaw · 论文被引画像分析 · http://127.0.0.1:8000</span>
     </div>
     <div class="mockup-body" style="padding: 18px;">
       <!-- Hero -->
@@ -1434,7 +1434,7 @@
       Google Scholar 主页导入
     </h3>
     <p>
-      在实际使用中我发现，对于一个有多篇论文需要追踪的研究者来说，最繁琐的事情之一就是逐个输入论文题目。CitationAgent 提供了一个 Google Scholar 主页导入功能，只需粘贴我的 Google Scholar 主页 URL，它就会自动抓取我名下所有论文的列表，包括引用数量和发表年份，然后让我勾选需要分析的论文，一键批量添加。
+      在实际使用中我发现，对于一个有多篇论文需要追踪的研究者来说，最繁琐的事情之一就是逐个输入论文题目。CitationClaw 提供了一个 Google Scholar 主页导入功能，只需粘贴我的 Google Scholar 主页 URL，它就会自动抓取我名下所有论文的列表，包括引用数量和发表年份，然后让我勾选需要分析的论文，一键批量添加。
     </p>
     <p>
       这个功能让我在第一次系统性分析自己所有论文时，节省了至少15分钟的手动输入时间。更重要的是，它减少了因为论文题目输入不精确而导致的搜索失败。
@@ -1758,7 +1758,7 @@
   <h2 class="section-title">选择哪个层级？我的决策逻辑</h2>
 
   <p>
-    CitationAgent 提供五种服务层级，乍看之下让人有些眼花缭乱，但几次使用下来，我总结出了一套自己的决策逻辑。
+    CitationClaw 提供五种服务层级，乍看之下让人有些眼花缭乱，但几次使用下来，我总结出了一套自己的决策逻辑。
   </p>
 
   <table class="tier-table">
@@ -1825,7 +1825,7 @@
   </p>
 
   <div class="narrative-scene" data-chapter="前几天，某个周四下午">
-    <p class="scene-p">我打开 CitationAgent，在论文题目框里输入了那篇论文的完整英文标题，同时在别名（Alias）一栏填上了它在 arXiv 预印本阶段的标题——那个稍有不同的早期版本标题有时候会在其他论文的参考文献中出现。</p>
+    <p class="scene-p">我打开 CitationClaw，在论文题目框里输入了那篇论文的完整英文标题，同时在别名（Alias）一栏填上了它在 arXiv 预印本阶段的标题——那个稍有不同的早期版本标题有时候会在其他论文的参考文献中出现。</p>
     <p class="scene-p">然后我选择了「全面版」——毕竟这次是为了基金材料，需要数据完整，按下了「开始分析」。</p>
     <p class="scene-p">抓取阶段很顺利，大约15分钟后 143 篇引用全部拿下。然后 AI 开始逐篇搜索作者信息，日志窗口开始刷新。我一边喝着咖啡，一边随意地瞄着屏幕，突然——</p>
     <p class="scene-p"><strong>★★★ 重要发现: Prof. [某] — 中国工程院院士</strong></p>
@@ -1834,7 +1834,7 @@
   </div>
 
   <p>
-    这次分析还有一个意外收获。在处理到第 89 篇论文时，系统识别出一篇论文的作者列表中包含了我自己——原来是我们实验室的一篇合作论文，相互引用了。CitationAgent 的自引检测功能自动标注了这条记录，并在最终的 Excel 里将其标记为"自引"，让我在汇报时可以选择过滤掉，避免数据被质疑。这个细节放在基金材料里尤其重要——评审专家看到"已剔除自引"，会对数据的严谨性更有信心。
+    这次分析还有一个意外收获。在处理到第 89 篇论文时，系统识别出一篇论文的作者列表中包含了我自己——原来是我们实验室的一篇合作论文，相互引用了。CitationClaw 的自引检测功能自动标注了这条记录，并在最终的 Excel 里将其标记为"自引"，让我在汇报时可以选择过滤掉，避免数据被质疑。这个细节放在基金材料里尤其重要——评审专家看到"已剔除自引"，会对数据的严谨性更有信心。
   </p>
 
   <p>
@@ -1866,7 +1866,7 @@
     <div class="tip-card">
       <div class="tip-num">02</div>
       <div class="tip-title">用缓存功能大幅降低成本</div>
-      <p class="tip-text">CitationAgent 有持久化作者缓存机制：某位学者一旦被搜索过，他的信息就会保存在本地。下次分析时，同一作者直接从缓存读取，不再消耗 API 额度。对于经常分析的研究领域，累计缓存后，每次分析费用会越来越低。</p>
+      <p class="tip-text">CitationClaw 有持久化作者缓存机制：某位学者一旦被搜索过，他的信息就会保存在本地。下次分析时，同一作者直接从缓存读取，不再消耗 API 额度。对于经常分析的研究领域，累计缓存后，每次分析费用会越来越低。</p>
     </div>
     <div class="tip-card">
       <div class="tip-num">03</div>
@@ -1962,7 +1962,7 @@
   </p>
 
   <p>
-    这些信息不只是虚荣心的满足。在我们领域，了解谁在关注你的工作、他们在什么语境下引用你，是形成学术合作机会、撰写基金申请书、准备学术汇报的重要基础信息。过去这些信息要么无从获取，要么需要花费大量时间手动整理。CitationAgent 改变了这件事。
+    这些信息不只是虚荣心的满足。在我们领域，了解谁在关注你的工作、他们在什么语境下引用你，是形成学术合作机会、撰写基金申请书、准备学术汇报的重要基础信息。过去这些信息要么无从获取，要么需要花费大量时间手动整理。CitationClaw 改变了这件事。
   </p>
 
   <div class="conclusion-box">
@@ -1971,7 +1971,7 @@
       ★★★★★
     </div>
     <p>
-      CitationAgent 是一个真正解决了学术研究者痛点的工具。它把原本需要数小时手工完成的被引学者画像分析，压缩到几十分钟内，并且以色彩直观、视觉漂亮的方式呈现结果。
+      CitationClaw 是一个真正解决了学术研究者痛点的工具。它把原本需要数小时手工完成的被引学者画像分析，压缩到几十分钟内，并且以色彩直观、视觉漂亮的方式呈现结果。
     </p>
     <p>
       它不是一个完美的工具——没有什么工具是完美的——但它在关键的地方做对了：零门槛的入门体验、透明可见的工作过程、切实有用的分析输出。
@@ -1992,9 +1992,9 @@
   <div class="footer-logo">📄</div>
   <div class="footer-text">
     本报告基于真实使用体验撰写，部分细节（学者姓名、引用数量）已作匿名化处理。<br>
-    CitationAgent 由独立开发者构建，用于学术研究用途。<br>
+    CitationClaw 由独立开发者构建，用于学术研究用途。<br>
     <br>
-    <strong style="color:var(--brown-light);">CitationAgent</strong> &nbsp;·&nbsp; 论文被引画像分析智能体<br>
+    <strong style="color:var(--brown-light);">CitationClaw</strong> &nbsp;·&nbsp; 论文被引画像分析智能体<br>
     <span style="font-size:11px;">本报告撰写于 2026 年 3 月</span>
   </div>
 </div>
