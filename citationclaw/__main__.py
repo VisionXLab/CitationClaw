@@ -8,7 +8,8 @@ Usage:
 """
 
 import argparse
-import asyncio
+import threading
+import time
 import webbrowser
 import sys
 
@@ -37,17 +38,14 @@ def main():
 
     print(f"\n  CitationClaw 🦞  →  http://{args.host}:{args.port}\n")
 
-    async def _open_browser():
-        await asyncio.sleep(1.5)
-        try:
-            webbrowser.open(f"http://{args.host}:{args.port}")
-        except Exception:
-            pass
-
     if not args.no_browser:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.create_task(_open_browser())
+        def _open_browser():
+            time.sleep(1.5)
+            try:
+                webbrowser.open(f"http://{args.host}:{args.port}")
+            except Exception:
+                pass
+        threading.Thread(target=_open_browser, daemon=True).start()
 
     try:
         uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
