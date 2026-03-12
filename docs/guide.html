@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CitationClaw 使用指南 - 论文被引画像分析</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82c4;
+            --primary-light: #e8f1fb;
+            --primary-dark: #1e3a5f;
+            --secondary: #4caf8a;
+            --accent: #d4892a;
+            --text: #2d3748;
+            --text-muted: #718096;
+            --text-light: #a0aec0;
+            --bg: #f7f8fc;
+            --surface: #ffffff;
+            --border: #dde2f0;
+            --code-bg: #f4f6f8;
+            --shadow: 0 4px 16px rgba(0,0,0,0.08);
+            --shadow-sm: 0 1px 4px rgba(0,0,0,0.06);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        
+        body {
+            font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            font-size: 15px;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a9e 50%, #1e4d7b 100%);
+            padding: 40px 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse 60% 80% at 85% 20%, rgba(100,160,255,0.15) 0%, transparent 60%);
+            pointer-events: none;
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 40px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .header h1 {
+            font-size: 42px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+        
+        .header h1 em {
+            font-style: normal;
+            color: #7db8f5;
+        }
+        
+        .header p {
+            font-size: 18px;
+            color: rgba(200,220,255,0.85);
+            max-width: 600px;
+        }
+
+        /* Layout */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            gap: 40px;
+            padding: 40px;
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: 280px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 20px;
+            height: fit-content;
+        }
+        
+        .nav-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .nav-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--border);
+        }
+        
+        .nav-list {
+            list-style: none;
+        }
+        
+        .nav-list li {
+            margin-bottom: 4px;
+        }
+        
+        .nav-list a {
+            display: block;
+            padding: 10px 14px;
+            color: var(--text);
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .nav-list a:hover {
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+        
+        .nav-list a.active {
+            background: var(--primary);
+            color: #fff;
+        }
+        
+        .nav-section {
+            margin-top: 24px;
+        }
+        
+        .nav-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            padding-left: 14px;
+        }
+
+        /* Main Content */
+        .main {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .content-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .section-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary-dark);
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 3px solid var(--primary-light);
+        }
+        
+        .section-title .num {
+            display: inline-block;
+            width: 36px;
+            height: 36px;
+            background: var(--primary);
+            color: #fff;
+            border-radius: 8px;
+            text-align: center;
+            line-height: 36px;
+            font-size: 16px;
+            margin-right: 14px;
+            font-weight: 700;
+        }
+
+        h3 {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text);
+            margin: 32px 0 16px;
+            padding-left: 16px;
+            border-left: 4px solid var(--secondary);
+        }
+        
+        h4 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--primary);
+            margin: 24px 0 12px;
+        }
+
+        p {
+            margin-bottom: 16px;
+            color: var(--text);
+        }
+
+        /* Code blocks */
+        code {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 13px;
+            background: var(--code-bg);
+            padding: 2px 8px;
+            border-radius: 4px;
+            color: var(--primary-dark);
+            border: 1px solid var(--border);
+        }
+        
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+        
+        pre code {
+            background: none;
+            border: none;
+            padding: 0;
+            display: block;
+            line-height: 1.6;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+        
+        th, td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        th {
+            background: var(--bg);
+            font-weight: 600;
+            color: var(--text);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        tr:hover {
+            background: var(--primary-light);
+        }
+        
+        td code {
+            font-size: 12px;
+        }
+
+        /* Field cards */
+        .field-card {
+            background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 24px;
+            margin: 20px 0;
+            position: relative;
+        }
+        
+        .field-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: var(--primary);
+            border-radius: 10px 0 0 10px;
+        }
+        
+        .field-card.required::before {
+            background: var(--accent);
+        }
+        
+        .field-card.optional::before {
+            background: var(--secondary);
+        }
+        
+        .field-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--primary-dark);
+            margin-bottom: 8px;
+        }
+        
+        .field-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 3px 10px;
+            border-radius: 4px;
+            margin-left: 10px;
+        }
+        
+        .badge-required {
+            background: #fff3e0;
+            color: #d4892a;
+            border: 1px solid #f0c070;
+        }
+        
+        .badge-optional {
+            background: #e6f6f0;
+            color: #357a62;
+            border: 1px solid #a0d9c0;
+        }
+        
+        .field-desc {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        
+        .field-example {
+            background: var(--surface);
+            border: 1px dashed var(--border);
+            border-radius: 6px;
+            padding: 12px 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--text);
+        }
+        
+        .field-example-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+
+        /* Tips */
+        .tip {
+            background: linear-gradient(90deg, var(--primary-light), transparent);
+            border-left: 4px solid var(--primary);
+            padding: 16px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .tip-title {
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+        
+        .tip p {
+            margin: 0;
+            font-size: 14px;
+            color: var(--text);
+        }
+        
+        .warning {
+            background: linear-gradient(90deg, #fff3e0, transparent);
+            border-left-color: var(--accent);
+        }
+        
+        .warning .tip-title {
+            color: var(--accent);
+        }
+
+        /* Report sections */
+        .report-section {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+            padding: 20px;
+            background: var(--bg);
+            border-radius: 10px;
+        }
+        
+        .report-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--primary);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+        
+        .report-content h4 {
+            margin: 0 0 8px;
+        }
+        
+        .report-content p {
+            margin: 0;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        /* Footer */
+        .footer {
+            background: var(--primary-dark);
+            color: rgba(255,255,255,0.7);
+            padding: 40px;
+            text-align: center;
+            margin-top: 60px;
+        }
+        
+        .footer a {
+            color: #7db8f5;
+            text-decoration: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .container {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                position: static;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<header class="header">
+    <div class="header-content">
+        <h1>Citation<em>Claw</em> 使用指南</h1>
+        <p>论文被引画像分析工具 - 完整配置与输出解读文档</p>
+    </div>
+</header>
+
+<div class="container">
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar">
+        <div class="nav-card">
+            <div class="nav-title">文档目录</div>
+            <ul class="nav-list">
+                <li><a href="#overview" class="active">项目概述</a></li>
+                <li><a href="#quickstart">快速开始</a></li>
+                <li><a href="#api-config">API 配置</a></li>
+                <li><a href="#scraper-config">爬虫配置</a></li>
+                <li><a href="#search-config">搜索配置</a></li>
+                <li><a href="#filter-config">筛选配置</a></li>
+                <li><a href="#output-config">输出配置</a></li>
+                <li><a href="#report-guide">报告解读</a></li>
+                <li><a href="#faq">常见问题</a></li>
+            </ul>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">相关链接</div>
+                <ul class="nav-list">
+                    <li><a href="https://github.com/VisionXLab/CitationClaw" target="_blank">GitHub 仓库</a></li>
+                    <li><a href="https://pypi.org/project/citationclaw/" target="_blank">PyPI 页面</a></li>
+                    <li><a href="#" onclick="alert('请访问 https://api.gpt.ge/register?aff=qH2n 获取 API Key')">获取 API Key</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main">
+        
+        <!-- Overview -->
+        <section id="overview" class="content-card">
+            <h2 class="section-title"><span class="num">01</span>项目概述</h2>
+            
+            <p><strong>CitationClaw</strong> 是一款智能的论文被引画像分析工具。它能够自动抓取指定论文的所有施引文献，通过 LLM 分析引用学者的学术背景（院士、Fellow、企业大佬等），最终生成一份精美的可视化 HTML 画像报告。</p>
+            
+            <div class="tip">
+                <div class="tip-title">💡 核心功能</div>
+                <p>输入论文题目或 Google Scholar 链接，一键获得完整的被引分析报告，包括学者分布、机构统计、引用趋势和主题分析。</p>
+            </div>
+            
+            <h3>工作流程</h3>
+            <table>
+                <tr>
+                    <th>阶段</th>
+                    <th>名称</th>
+                    <th>说明</th>
+                </tr>
+                <tr>
+                    <td><strong>Phase 1</strong></td>
+                    <td>引用抓取</td>
+                    <td>使用 ScraperAPI 从 Google Scholar 抓取所有施引论文</td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 2</strong></td>
+                    <td>作者搜索</td>
+                    <td>使用 LLM 搜索每篇施引论文作者的学术信息</td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 3</strong></td>
+                    <td>结果导出</td>
+                    <td>生成 Excel 和 JSON 格式的结构化数据</td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 4</strong></td>
+                    <td>引用描述</td>
+                    <td>（可选）分析引用论文对目标论文的引用描述</td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 5</strong></td>
+                    <td>画像报告</td>
+                    <td>生成可视化 HTML 报告，包含图表和统计</td>
+                </tr>
+            </table>
+        </section>
+
+        <!-- Quick Start -->
+        <section id="quickstart" class="content-card">
+            <h2 class="section-title"><span class="num">02</span>快速开始</h2>
+            
+            <h3>安装</h3>
+            <pre><code># 通过 pip 安装
+pip install citationclaw
+
+# 启动应用
+citationclaw</code></pre>
+            
+            <h3>首次使用流程</h3>
+            <ol style="margin: 20px 0; padding-left: 24px;">
+                <li style="margin-bottom: 12px;">启动后浏览器自动打开 <code>http://127.0.0.1:8000</code></li>
+                <li style="margin-bottom: 12px;">配置 API Key（见下方详细说明）</li>
+                <li style="margin-bottom: 12px;">输入论文标题或粘贴 Google Scholar 引用链接</li>
+                <li style="margin-bottom: 12px;">点击「开始分析」等待任务完成</li>
+                <li>下载生成的 Excel、JSON 和 HTML 报告</li>
+            </ol>
+        </section>
+
+        <!-- API Config -->
+        <section id="api-config" class="content-card">
+            <h2 class="section-title"><span class="num">03</span>API 配置</h2>
+            
+            <div class="field-card required">
+                <div class="field-name">
+                    scraper_api_keys
+                    <span class="field-badge badge-required">必填</span>
+                </div>
+                <div class="field-desc">用于抓取 Google Scholar 的 ScraperAPI Key。免费账户有 1000 积分试用，约可爬取 50 次。</div>
+                <div class="field-example-label">获取方式</div>
+                <div class="field-example">1. 访问 https://dashboard.scraperapi.com
+2. 注册账户即可获得免费 API Key
+3. 复制 Key 粘贴到配置中</div>
+            </div>
+            
+            <div class="field-card required">
+                <div class="field-name">
+                    openai_api_key
+                    <span class="field-badge badge-required">必填</span>
+                </div>
+                <div class="field-desc">LLM API Key，支持任意 OpenAI 兼容格式的 API。推荐使用 V-API（国内可用）。</div>
+                <div class="field-example-label">推荐配置</div>
+                <div class="field-example">Base URL: https://api.gpt.ge/v1/
+Search Model: gemini-3-flash-preview-search
+Dashboard Model: gemini-3-flash-preview-nothinking</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    openai_base_url
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">API 服务地址。默认使用 V-API，如需使用其他服务请修改。</div>
+                <div class="field-example">https://api.gpt.ge/v1/</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    openai_model
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">用于作者搜索的模型。<strong>必须具备实时 web search 能力</strong>。</div>
+                <div class="field-example">gemini-3-flash-preview-search</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    dashboard_model
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">专门用于生成报告画像的模型，无需 search 能力，只需快速响应。</div>
+                <div class="field-example">gemini-3-flash-preview-nothinking</div>
+            </div>
+
+            <div class="tip warning">
+                <div class="tip-title">⚠️ 重要提示</div>
+                <p>作者搜索模型必须具备实时 web search 能力，否则无法获取作者最新信息。Dashboard 模型可以选用更快的版本。</p>
+            </div>
+        </section>
+
+        <!-- Scraper Config -->
+        <section id="scraper-config" class="content-card">
+            <h2 class="section-title"><span class="num">04</span>爬虫配置</h2>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    sleep_between_pages
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">每页抓取之间的间隔时间（秒）。过短可能被 Google Scholar 限制。</div>
+                <div class="field-example">默认值: 10
+建议范围: 5-20</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    retry_max_attempts
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">HTTP 请求失败时的最大重试次数。设为 -1 表示无限重试。</div>
+                <div class="field-example">默认值: 3</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    retry_intervals
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">重试间隔时间，逗号分隔的秒数。</div>
+                <div class="field-example">默认值: "5,10,20"
+含义: 第1次重试等5秒，第2次等10秒，第3次等20秒</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    enable_year_traverse
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">是否按年份分别抓取。开启后能获得更完整的引用列表，但会显著增加抓取时间。</div>
+                <div class="field-example">默认值: false
+建议: 引用数 >1000 的论文开启</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    scraper_premium / scraper_ultra_premium
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">是否使用 ScraperAPI 的高级代理。需要付费账户支持。</div>
+                <div class="field-example">默认值: false</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    scraper_geo_rotate
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">数据中心不一致时是否切换国家代码重试。</div>
+                <div class="field-example">默认值: false
+建议: 遇到数据中心不一致错误时开启</div>
+            </div>
+        </section>
+
+        <!-- Search Config -->
+        <section id="search-config" class="content-card">
+            <h2 class="section-title"><span class="num">05</span>搜索配置</h2>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    parallel_author_search
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">并行搜索作者信息的数量。增加可加速但会增加 API 消耗。</div>
+                <div class="field-example">默认值: 10
+建议范围: 5-20</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    sleep_between_authors
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">每个作者搜索请求之间的间隔（秒）。防止 API 速率限制。</div>
+                <div class="field-example">默认值: 0.5</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    enable_renowned_scholar_filter
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">是否启用知名学者二次筛选。开启后 LLM 会进一步筛选出院士、Fellow 等级别学者。</div>
+                <div class="field-example">默认值: true</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    enable_author_verification
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">是否启用作者信息验证。会额外调用 LLM 验证作者头衔的真实性。</div>
+                <div class="field-example">默认值: false
+注意: 开启会显著增加 API 消耗</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    author_search_prompt1 / author_search_prompt2
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">自定义作者搜索的 Prompt。一般使用默认即可。</div>
+                <div class="field-example">prompt1: 搜索作者列表
+prompt2: 搜索作者详细信息</div>
+            </div>
+        </section>
+
+        <!-- Filter Config -->
+        <section id="filter-config" class="content-card">
+            <h2 class="section-title"><span class="num">06</span>筛选配置</h2>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    enable_citing_description
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">是否搜索引用描述（Phase 4）。分析每篇引用论文如何描述目标论文。</div>
+                <div class="field-example">默认值: true</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    citing_description_scope
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">引用描述搜索范围。</div>
+                <div class="field-example">可选值:
+- "all": 所有论文（默认）
+- "renowned_only": 仅知名学者论文
+- "specified_only": 仅指定学者论文</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    specified_scholars
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">当 scope 为 specified_only 时，指定要关注的学者名单（逗号分隔）。</div>
+                <div class="field-example">"Geoffrey Hinton, Yann LeCun, Yoshua Bengio"</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    skip_author_search
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">是否跳过作者搜索（Phase 2）。仅抓取引用列表，节省 API 费用。</div>
+                <div class="field-example">默认值: false
+适用场景: 快速查看引用数量</div>
+            </div>
+        </section>
+
+        <!-- Output Config -->
+        <section id="output-config" class="content-card">
+            <h2 class="section-title"><span class="num">07</span>输出配置</h2>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    enable_dashboard
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">是否生成 HTML 画像报告（Phase 5）。包含可视化图表和统计。</div>
+                <div class="field-example">默认值: true</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    dashboard_skip_citing_analysis
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">报告中是否跳过引用描述分析部分。</div>
+                <div class="field-example">默认值: false</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    debug_mode
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">调试模式。开启后会保存原始 HTML 和详细日志。</div>
+                <div class="field-example">默认值: false
+用途: 排查抓取问题</div>
+            </div>
+            
+            <div class="field-card optional">
+                <div class="field-name">
+                    test_mode
+                    <span class="field-badge badge-optional">选填</span>
+                </div>
+                <div class="field-desc">测试模式。使用伪造数据，不调用真实 API，用于演示或测试报告样式。</div>
+                <div class="field-example">默认值: false</div>
+            </div>
+        </section>
+
+        <!-- Report Guide -->
+        <section id="report-guide" class="content-card">
+            <h2 class="section-title"><span class="num">08</span>报告解读</h2>
+            
+            <p>生成的 HTML 画像报告包含以下核心模块：</p>
+            
+            <div class="report-section">
+                <div class="report-icon">📊</div>
+                <div class="report-content">
+                    <h4>统计概览栏</h4>
+                    <p>展示总引用数、施引论文数、学者数量、机构数量等关键指标。</p>
+                </div>
+            </div>
+            
+            <div class="report-section">
+                <div class="report-icon">👥</div>
+                <div class="report-content">
+                    <h4>学者画像卡片</h4>
+                    <p>列出所有识别出的知名学者（院士、Fellow、企业大佬），显示姓名、机构、头衔和施引论文。</p>
+                </div>
+            </div>
+            
+            <div class="report-section">
+                <div class="report-icon">🏛️</div>
+                <div class="report-content">
+                    <h4>机构分布卡片</h4>
+                    <p>展示施引学者的机构分布，分类为：国际科技企业、国内科技企业、海外顶尖高校、国内顶尖高校/机构。</p>
+                </div>
+            </div>
+            
+            <div class="report-section">
+                <div class="report-icon">📈</div>
+                <div class="report-content">
+                    <h4>引用趋势图表</h4>
+                    <p>年度引用柱状图和月度趋势折线图，帮助了解论文影响力的变化趋势。</p>
+                </div>
+            </div>
+            
+            <div class="report-section">
+                <div class="report-icon">☁️</div>
+                <div class="report-content">
+                    <h4>词云可视化</h4>
+                    <p>基于施引论文标题的关键词词云，直观展示引用该论文的研究主题分布。</p>
+                </div>
+            </div>
+            
+            <div class="report-section">
+                <div class="report-icon">📝</div>
+                <div class="report-content">
+                    <h4>引用描述列表</h4>
+                    <p>（如启用 Phase 4）每篇引用论文对目标论文的引用描述，可点击展开查看详情。</p>
+                </div>
+            </div>
+            
+            <h3>输出文件说明</h3>
+            <table>
+                <tr>
+                    <th>文件名</th>
+                    <th>格式</th>
+                    <th>用途</th>
+                </tr>
+                <tr>
+                    <td><code>*_results.xlsx</code></td>
+                    <td>Excel</td>
+                    <td>完整结果表格，包含所有字段</td>
+                </tr>
+                <tr>
+                    <td><code>*_all_renowned_scholar.xlsx</code></td>
+                    <td>Excel</td>
+                    <td>所有知名学者列表</td>
+                </tr>
+                <tr>
+                    <td><code>*_top-tier_scholar.xlsx</code></td>
+                    <td>Excel</td>
+                    <td>顶尖学者（院士级别）</td>
+                </tr>
+                <tr>
+                    <td><code>*_results.json</code></td>
+                    <td>JSON</td>
+                    <td>结构化数据，供程序处理</td>
+                </tr>
+                <tr>
+                    <td><code>*_dashboard.html</code></td>
+                    <td>HTML</td>
+                    <td>可视化画像报告（可离线查看）</td>
+                </tr>
+            </table>
+        </section>
+
+        <!-- FAQ -->
+        <section id="faq" class="content-card">
+            <h2 class="section-title"><span class="num">09</span>常见问题</h2>
+            
+            <h4>Q1: 抓取被 Google Scholar 限制怎么办？</h4>
+            <p>尝试以下方法：1) 增加 <code>sleep_between_pages</code> 间隔；2) 开启 <code>scraper_premium</code>；3) 开启 <code>scraper_geo_rotate</code> 切换数据中心。</p>
+            
+            <h4>Q2: 如何节省 API 费用？</h4>
+            <p>1) 合理设置 <code>parallel_author_search</code>；2) 不需要知名学者筛选时关闭 <code>enable_renowned_scholar_filter</code>；3) 使用缓存复用已有结果；4) 不需要详细报告时关闭 <code>enable_citing_description</code>。</p>
+            
+            <h4>Q3: 作者信息不准确怎么办？</h4>
+            <p>开启 <code>enable_author_verification</code> 进行验证，或手动检查 <code>Searched Author Information</code> 字段。也可尝试更换搜索模型为更强的版本（如 gemini-3-pro）。</p>
+            
+            <h4>Q4: 支持批量分析多篇论文吗？</h4>
+            <p>支持！在输入框中每行输入一篇论文标题，系统会自动合并分析。支持为论文添加曾用名（别名），格式为：<code>正式标题 | 别名1, 别名2</code>。</p>
+            
+            <h4>Q5: 数据隐私如何保障？</h4>
+            <p>所有数据保存在本地 <code>data/</code> 目录，不会上传到任何服务器。API Key 仅用于调用第三方服务，建议定期更换。</p>
+        </section>
+
+    </main>
+</div>
+
+<footer class="footer">
+    <p>CitationClaw - 论文被引画像分析工具 | <a href="https://github.com/VisionXLab/CitationClaw">GitHub</a></p>
+    <p style="margin-top: 8px; font-size: 13px;">让每一次引用都成为可解释的影响力</p>
+</footer>
+
+<script>
+    // Smooth scroll and active nav highlighting
+    document.querySelectorAll('.nav-list a').forEach(link => {
+        link.addEventListener('click', function(e) {
+            const href = this.getAttribute('href');
+            if (href.startsWith('#')) {
+                e.preventDefault();
+                const target = document.querySelector(href);
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+        });
+    });
+
+    // Highlight active section on scroll
+    window.addEventListener('scroll', () => {
+        const sections = document.querySelectorAll('.content-card[id]');
+        const navLinks = document.querySelectorAll('.nav-list a');
+        
+        let current = '';
+        sections.forEach(section => {
+            const sectionTop = section.offsetTop - 100;
+            if (scrollY >= sectionTop) {
+                current = section.getAttribute('id');
+            }
+        });
+        
+        navLinks.forEach(link => {
+            link.classList.remove('active');
+            if (link.getAttribute('href') === '#' + current) {
+                link.classList.add('active');
+            }
+        });
+    });
+</script>
+
+</body>
+</html>

@@ -281,7 +281,7 @@ async def fetch_scholar_papers(request: ScholarProfileRequest):
         return JSONResponse(status_code=400,
             content={"error": "未配置 ScraperAPI 密钥，请先在配置页设置"})
 
-    from citationclaw.core.scholar_profile_scraper import ScholarProfileScraper
+    from citationclaw.skills.google_scholar_scraper.scholar_profile_scraper import ScholarProfileScraper
     scraper = ScholarProfileScraper(
         api_keys=config.scraper_api_keys,
         log_callback=print,

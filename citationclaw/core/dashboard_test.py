@@ -196,7 +196,7 @@ def main():
     }
 
     # ── 7. 调用 DashboardGenerator ────────────────────────────────────────
-    from citationclaw.core.dashboard_generator import DashboardGenerator
+    from citationclaw.skills.dashboard_generator import DashboardGenerator
 
     def log(msg: str):
         print(f"  {msg}")
