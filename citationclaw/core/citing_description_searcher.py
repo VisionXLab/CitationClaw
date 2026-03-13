@@ -48,12 +48,14 @@ class CitingDescriptionSearcher:
                 )
                 return comp.choices[0].message.content or ""
             except Exception as e:
+                is_timeout = 'timed out' in str(e).lower() or 'timeout' in str(e).lower()
                 if i < retries - 1:
-                    if i == 0:
+                    if i == 0 and not is_timeout:
                         self.log(f"{log_prefix}⚠️ 搜索API错误: {e}，正在启用重试机制，请耐心等待！")
                     await asyncio.sleep(2 ** i)
                 else:
-                    self.log(f"⚠️ 搜索API错误: {e}")
+                    if not is_timeout:
+                        self.log(f"{log_prefix}⚠️ 搜索API错误: {e}")
                     return "NONE"
 
     async def _get_target_authors(self, target_title: str, log_prefix: str = "") -> str:

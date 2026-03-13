@@ -83,6 +83,24 @@ class LogManager:
         """记录ERROR级别日志"""
         self._log("ERROR", message)
 
+    def heartbeat(self, elapsed: int):
+        """
+        发送心跳更新（不存入日志，仅广播给前端，用于"运行中"状态栏）
+
+        Args:
+            elapsed: 已运行秒数
+        """
+        asyncio.create_task(self._broadcast({
+            "type": "heartbeat",
+            "data": {"elapsed": elapsed}
+        }))
+
+    def heartbeat_done(self):
+        """发送心跳结束信号，前端隐藏状态栏"""
+        asyncio.create_task(self._broadcast({
+            "type": "heartbeat_done"
+        }))
+
     def update_progress(self, current: int, total: int):
         """
         更新进度

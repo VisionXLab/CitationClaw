@@ -27,6 +27,31 @@ class TaskExecutor:
         # 保存阶段1的结果，供阶段2使用
         self.stage1_result: Optional[dict] = None
 
+    async def _run_with_heartbeat(self, coro, interval: int = 30):
+        """
+        并发运行协程与心跳任务：每隔 interval 秒向前端推送"运行中"状态，
+        协程结束后自动取消心跳并发送结束信号。
+        """
+        loop = asyncio.get_event_loop()
+        start = loop.time()
+
+        async def _heartbeat():
+            while True:
+                await asyncio.sleep(interval)
+                elapsed = int(loop.time() - start)
+                self.log_manager.heartbeat(elapsed)
+
+        hb_task = asyncio.create_task(_heartbeat())
+        try:
+            return await coro
+        finally:
+            hb_task.cancel()
+            try:
+                await hb_task
+            except asyncio.CancelledError:
+                pass
+            self.log_manager.heartbeat_done()
+
     async def execute_full_pipeline(
         self,
         url: str,
@@ -112,13 +137,13 @@ class TaskExecutor:
             )
 
             author_info_file = Path(f"data/jsonl/{file_prefix}_author_information.jsonl")
-            await searcher.search(
+            await self._run_with_heartbeat(searcher.search(
                 input_file=citing_papers_file,
                 output_file=author_info_file,
                 sleep_seconds=config.sleep_between_authors,
                 parallel_workers=config.parallel_author_search,
                 cancel_check=lambda: self.should_cancel
-            )
+            ))
 
             if self.should_cancel:
                 self.log_manager.warning("任务已被用户取消")
@@ -343,13 +368,13 @@ class TaskExecutor:
             )
 
             author_info_file = Path(f"data/jsonl/{file_prefix}_author_information.jsonl")
-            await searcher.search(
+            await self._run_with_heartbeat(searcher.search(
                 input_file=citing_papers_file,
                 output_file=author_info_file,
                 sleep_seconds=config.sleep_between_authors,
                 parallel_workers=config.parallel_author_search,
                 cancel_check=lambda: self.should_cancel
-            )
+            ))
 
             if self.should_cancel:
                 self.log_manager.warning("任务已被用户取消")
@@ -569,14 +594,14 @@ class TaskExecutor:
                             author_cache=author_cache,
                         )
                         author_file = result_dir / f"{paper_slug}_authors.jsonl"
-                        await searcher.search(
+                        await self._run_with_heartbeat(searcher.search(
                             input_file=citing_file,
                             output_file=author_file,
                             sleep_seconds=config.sleep_between_authors,
                             parallel_workers=config.parallel_author_search,
                             cancel_check=lambda: self.should_cancel,
                             citing_paper=canonical,   # 始终用正式标题写入 Citing_Paper
-                        )
+                        ))
                         if self.should_cancel:
                             break
                         author_info_files.append(author_file)
@@ -748,12 +773,12 @@ class TaskExecutor:
                         progress_callback=self.log_manager.update_progress,
                         cache=desc_cache,
                     )
-                    await desc_searcher.search(
+                    await self._run_with_heartbeat(desc_searcher.search(
                         input_excel=phase4_input,
                         output_excel=citing_desc_excel,
                         parallel_workers=config.parallel_author_search,
                         cancel_check=lambda: self.should_cancel,
-                    )
+                    ))
                     s = desc_cache.stats()
                     self.log_manager.info(
                         f"引用描述记忆池: 共 {s['total_entries']} 条 | "

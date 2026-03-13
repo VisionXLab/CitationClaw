@@ -622,6 +622,21 @@ function initIndexPage() {
         // Update global progress bar
         GlobalProgress.show(currentPhase, progress.percentage || 0);
     });
+    ws.on('heartbeat', data => {
+        const bar = document.getElementById('running-heartbeat');
+        const msg = document.getElementById('hb-msg');
+        if (!bar || !msg) return;
+        const elapsed = data.elapsed || 0;
+        const mins = Math.floor(elapsed / 60);
+        const secs = elapsed % 60;
+        const timeStr = mins > 0 ? `${mins}分${secs}秒` : `${secs}秒`;
+        msg.textContent = `还在运行中，已运行时长为${timeStr}，请耐心等待！`;
+        bar.style.display = 'flex';
+    });
+    ws.on('heartbeat_done', () => {
+        const bar = document.getElementById('running-heartbeat');
+        if (bar) bar.style.display = 'none';
+    });
     ws.on('all_done', data => {
         showIndexResults(data);
         // Hide global progress after 3 seconds
