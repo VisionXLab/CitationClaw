@@ -680,6 +680,14 @@ function initIndexPage() {
         document.getElementById('idx-log-container').innerHTML =
             '<div class="reasoning-empty"><div class="reasoning-empty-icon">🤖</div><div class="reasoning-empty-text">智能体正在初始化...</div></div>';
 
+        // 立即显示当前搜索模型
+        const _modelEl = document.getElementById('idx-openai-model');
+        appendIndexLog({
+            timestamp: new Date().toLocaleString('zh-CN'),
+            level: 'INFO',
+            message: '🔍 搜索模型：' + (_modelEl ? _modelEl.value || '(未设置)' : '(未设置)')
+        });
+
         // 显示 thinking indicator
         const thinking = document.getElementById('rp-thinking-indicator');
         if (thinking) thinking.classList.add('active');
