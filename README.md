@@ -15,6 +15,9 @@ Turn Every Citation into Explainable Impact
 [![Homepage](https://img.shields.io/badge/Homepage-CitationClaw-blue)](https://visionxlab.github.io/CitationClaw/)
 [![PyPI](https://img.shields.io/pypi/v/citationclaw?logo=pypi&logoColor=white&color=0073b7)](https://pypi.org/project/citationclaw/)
 [![PyPI Downloads](https://img.shields.io/pypi/dm/citationclaw)](https://pypi.org/project/citationclaw/)
+[![Visitors](https://visitor-badge.laobi.icu/badge?page_id=VisionXLab.CitationClaw)](https://github.com/VisionXLab/CitationClaw)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://github.com/VisionXLab/CitationClaw/pulls)
+[![Issues](https://img.shields.io/github/issues/VisionXLab/CitationClaw)](https://github.com/VisionXLab/CitationClaw/issues)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
 ![LLM](https://img.shields.io/badge/LLM-OpenAI%20Compatible-412991?logo=openai&logoColor=white)
@@ -24,6 +27,14 @@ Turn Every Citation into Explainable Impact
 **Input paper titles (or import from Google Scholar profile), and generate a full citation portrait report in one click.**
 
 </div>
+
+> ## 🚀 Community PRs Are Highly Welcome
+> We warmly welcome contributions from the open-source community.  
+> **Found a bug? Have an idea? Submit an Issue or a PR!**
+>
+> - Open an issue: <https://github.com/VisionXLab/CitationClaw/issues>
+> - Submit a PR: <https://github.com/VisionXLab/CitationClaw/pulls>
+> - Start from docs/UX improvements or model/pipeline optimizations
 
 ---
 
