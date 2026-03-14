@@ -1529,6 +1529,364 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
 
         gen_date = f"{now.year}.{str(now.month).zfill(2)}.{str(now.day).zfill(2)}"
 
+        # ── Knowledge graph data ────────────────────────────────────────────────
+        KG_MAX = 120
+        kg_paper_list = papers[:KG_MAX]
+        kg_nodes = []
+        for _i, _ct in enumerate(canonical_titles or []):
+            kg_nodes.append({
+                "id": f"c{_i}", "type": "center",
+                "title": _ct[:80], "year": None, "citations": None,
+                "link": "", "country": "", "institution": "",
+            })
+        _center_id = "c0"
+        for _i, _p in enumerate(kg_paper_list):
+            kg_nodes.append({
+                "id": f"p{_i}", "type": "paper",
+                "title": (_p.get("title") or "Unknown")[:80],
+                "year": int(_p["year"]) if _p.get("year") else None,
+                "citations": int(_p["citations"]) if _p.get("citations") else 0,
+                "link": _p.get("link", ""),
+                "country": _p.get("country", ""),
+                "institution": (_p.get("institution") or "")[:55],
+            })
+        kg_links = [{"source": f"p{_i}", "target": _center_id}
+                    for _i in range(len(kg_paper_list))]
+        kg_data_json = json.dumps({"nodes": kg_nodes, "links": kg_links},
+                                  ensure_ascii=False)
+
+        kg_section_html = """
+<!-- SECTION 09 -->
+<div class="section-header">
+  <span class="section-num">09</span>
+  <span class="section-title">知识图谱 · 引用关系可视化</span>
+  <div class="section-divider"></div>
+</div>
+<div class="card grid-1">
+  <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+    <div style="display:flex;align-items:center;gap:7px">
+      <div class="card-title-dot teal"></div>
+      以目标论文为中心的引用关系图谱（支持拖拽节点 · 滚轮缩放 · 点击打开论文）
+    </div>
+    <button id="kg-reset-btn" style="font-size:10px;padding:3px 12px;border:1px solid rgba(66,153,225,0.45);background:rgba(66,153,225,0.1);color:#bee3f8;border-radius:5px;cursor:pointer;transition:background .2s" onmouseover="this.style.background='rgba(66,153,225,0.25)'" onmouseout="this.style.background='rgba(66,153,225,0.1)'">重置视图</button>
+  </div>
+  <div id="kg-container" style="width:100%;height:580px;background:#0c1220;border-radius:12px;overflow:hidden;position:relative;border:1px solid rgba(66,153,225,0.12)">
+    <div id="kg-loading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:rgba(180,210,255,0.35);font-size:13px;pointer-events:none">正在渲染知识图谱…</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:22px;margin-top:12px;flex-wrap:wrap;font-size:11px;color:var(--text-light)">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="color:#a0aec0">节点颜色 = 年份：</span>
+      <svg id="kg-legend-svg" width="160" height="12" style="border-radius:3px;vertical-align:middle"></svg>
+      <span id="kg-year-min" style="color:#9f7aea;font-size:10px"></span>
+      <span style="color:#718096">→</span>
+      <span id="kg-year-max" style="color:#48bb78;font-size:10px"></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <svg width="44" height="14" style="vertical-align:middle">
+        <circle cx="6" cy="7" r="4" fill="rgba(72,187,120,0.65)"></circle>
+        <circle cx="28" cy="7" r="7" fill="rgba(72,187,120,0.65)"></circle>
+      </svg>
+      <span style="color:#a0aec0">节点大小 = 施引论文被引量</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <svg width="16" height="16"><circle cx="8" cy="8" r="7" fill="#0f2744" stroke="#4299e1" stroke-width="2.5"></circle></svg>
+      <span style="color:#a0aec0">蓝色大节点 = 目标论文</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="color:#718096;font-size:10px">内圈 = 较旧 · 外圈 = 较新</span>
+    </div>
+  </div>
+</div>"""
+
+        _js_code = r"""
+(function() {
+  var data = KG_DATA_PLACEHOLDER;
+  var container = document.getElementById('kg-container');
+  if (!container || !window.d3 || !data.nodes.length) return;
+  var loading = document.getElementById('kg-loading');
+  if (loading) loading.style.display = 'none';
+
+  var W = container.clientWidth || 820;
+  var H = 580;
+
+  var svg = d3.select(container).append('svg')
+    .attr('width', W).attr('height', H).style('display', 'block');
+
+  /* ── Glow filter ── */
+  var defs = svg.append('defs');
+  var flt = defs.append('filter').attr('id', 'kg-glow')
+    .attr('x', '-60%').attr('y', '-60%').attr('width', '220%').attr('height', '220%');
+  flt.append('feGaussianBlur').attr('stdDeviation', '5').attr('result', 'blur');
+  var fm = flt.append('feMerge');
+  fm.append('feMergeNode').attr('in', 'blur');
+  fm.append('feMergeNode').attr('in', 'SourceGraphic');
+
+  var flt2 = defs.append('filter').attr('id', 'kg-glow2')
+    .attr('x', '-40%').attr('y', '-40%').attr('width', '180%').attr('height', '180%');
+  flt2.append('feGaussianBlur').attr('stdDeviation', '2.5').attr('result', 'blur2');
+  var fm2 = flt2.append('feMerge');
+  fm2.append('feMergeNode').attr('in', 'blur2');
+  fm2.append('feMergeNode').attr('in', 'SourceGraphic');
+
+  /* ── Background ── */
+  svg.append('rect').attr('width', W).attr('height', H)
+    .attr('fill', '#0c1220').attr('rx', 11);
+
+  /* subtle grid */
+  var gridG = svg.append('g').attr('opacity', 0.025);
+  for (var gx = 0; gx <= W; gx += 50)
+    gridG.append('line').attr('x1', gx).attr('y1', 0).attr('x2', gx).attr('y2', H)
+      .attr('stroke', '#4299e1').attr('stroke-width', 0.5);
+  for (var gy = 0; gy <= H; gy += 50)
+    gridG.append('line').attr('x1', 0).attr('y1', gy).attr('x2', W).attr('y2', gy)
+      .attr('stroke', '#4299e1').attr('stroke-width', 0.5);
+
+  var g = svg.append('g');
+
+  /* ── Zoom ── */
+  var zoom = d3.zoom().scaleExtent([0.12, 9]).on('zoom', function(event) {
+    g.attr('transform', event.transform);
+  });
+  svg.call(zoom).on('dblclick.zoom', null);
+
+  /* ── Year color scale ── */
+  var paperNodes = data.nodes.filter(function(n) { return n.type === 'paper'; });
+  var years = paperNodes.map(function(n) { return n.year; }).filter(Boolean);
+  var minY = years.length ? Math.min.apply(null, years) : 2015;
+  var maxY = years.length ? Math.max.apply(null, years) : 2024;
+
+  function yearColor(y) {
+    if (!y) return '#4299e1';
+    var t = Math.max(0, Math.min(1, (y - minY) / Math.max(maxY - minY, 1)));
+    var r, gr, b;
+    if (t < 0.5) {
+      var tt = t * 2;
+      r = Math.round(159 * (1 - tt) + 66 * tt);
+      gr = Math.round(122 * (1 - tt) + 153 * tt);
+      b = Math.round(234 * (1 - tt) + 225 * tt);
+    } else {
+      var tt = (t - 0.5) * 2;
+      r = Math.round(66 * (1 - tt) + 72 * tt);
+      gr = Math.round(153 * (1 - tt) + 187 * tt);
+      b = Math.round(225 * (1 - tt) + 120 * tt);
+    }
+    return 'rgb(' + r + ',' + gr + ',' + b + ')';
+  }
+
+  /* ── Node radius ── */
+  var allCits = paperNodes.map(function(n) { return n.citations || 0; });
+  var maxCit = allCits.length ? Math.max.apply(null, allCits) : 1;
+
+  function nodeRadius(d) {
+    if (d.type === 'center') return 36;
+    var cit = d.citations || 0;
+    return 5 + Math.pow(cit / Math.max(maxCit, 1), 0.42) * 25;
+  }
+
+  /* ── Force simulation ── */
+  var sim = d3.forceSimulation(data.nodes)
+    .force('link', d3.forceLink(data.links)
+      .id(function(d) { return d.id; })
+      .distance(function(d) {
+        var src = typeof d.source === 'object' ? d.source : {};
+        var cit = src.citations || 0;
+        return 95 + (1 - Math.pow(cit / Math.max(maxCit, 1), 0.38)) * 150;
+      })
+      .strength(0.28))
+    .force('charge', d3.forceManyBody().strength(function(d) {
+      return d.type === 'center' ? -700 : -45;
+    }))
+    .force('center', d3.forceCenter(W / 2, H / 2).strength(0.05))
+    .force('radial', d3.forceRadial(function(d) {
+      if (d.type === 'center') return 0;
+      var t = d.year ? Math.max(0, Math.min(1, (d.year - minY) / Math.max(maxY - minY, 1))) : 0.5;
+      return 90 + t * 210;
+    }, W / 2, H / 2).strength(0.18))
+    .force('collision', d3.forceCollide().radius(function(d) {
+      return nodeRadius(d) + 4;
+    }).strength(0.75))
+    .alphaDecay(0.013);
+
+  /* ── Links ── */
+  var link = g.append('g').selectAll('line').data(data.links).join('line')
+    .attr('stroke', 'rgba(66,153,225,0.09)')
+    .attr('stroke-width', 0.85);
+
+  /* ── Drag behavior ── */
+  var drag = d3.drag()
+    .on('start', function(event, d) {
+      if (!event.active) sim.alphaTarget(0.3).restart();
+      d.fx = d.x; d.fy = d.y;
+    })
+    .on('drag', function(event, d) { d.fx = event.x; d.fy = event.y; })
+    .on('end', function(event, d) {
+      if (!event.active) sim.alphaTarget(0);
+      d.fx = null; d.fy = null;
+    });
+
+  /* ── Nodes ── */
+  var node = g.append('g').selectAll('g').data(data.nodes).join('g')
+    .style('cursor', function(d) {
+      return (d.link && d.type === 'paper') ? 'pointer' : 'default';
+    })
+    .call(drag);
+
+  /* Center: outer glow ring */
+  node.filter(function(d) { return d.type === 'center'; })
+    .append('circle').attr('r', 54)
+    .attr('fill', 'none').attr('stroke', 'rgba(66,153,225,0.12)').attr('stroke-width', 1);
+
+  node.filter(function(d) { return d.type === 'center'; })
+    .append('circle').attr('r', 44)
+    .attr('fill', 'none').attr('stroke', 'rgba(66,153,225,0.2)').attr('stroke-width', 1);
+
+  node.filter(function(d) { return d.type === 'center'; })
+    .append('circle').attr('r', 36)
+    .attr('fill', '#0f2744').attr('stroke', '#4299e1').attr('stroke-width', 2.5)
+    .style('filter', 'url(#kg-glow)');
+
+  /* Center label */
+  node.filter(function(d) { return d.type === 'center'; })
+    .each(function(d) {
+      var el = d3.select(this);
+      el.append('text').text('🎯')
+        .attr('text-anchor', 'middle').attr('dy', '-22px').attr('font-size', '15px')
+        .style('pointer-events', 'none');
+      var words = d.title.split(' ');
+      var lines = [''];
+      words.forEach(function(w) {
+        if ((lines[lines.length - 1] + ' ' + w).trim().length > 13) {
+          lines.push(w);
+        } else {
+          lines[lines.length - 1] = (lines[lines.length - 1] + ' ' + w).trim();
+        }
+      });
+      lines = lines.slice(0, 4);
+      var textEl = el.append('text')
+        .attr('text-anchor', 'middle').attr('fill', '#bee3f8')
+        .attr('font-size', 8).attr('font-weight', '600')
+        .style('pointer-events', 'none');
+      lines.forEach(function(l, i) {
+        textEl.append('tspan').attr('x', 0)
+          .attr('dy', i === 0 ? (-(lines.length - 1) * 6) + 'px' : '12px')
+          .text(l);
+      });
+    });
+
+  /* Paper nodes: outer glow for high-citation */
+  node.filter(function(d) { return d.type === 'paper' && d.citations > maxCit * 0.5; })
+    .append('circle')
+    .attr('r', function(d) { return nodeRadius(d) + 4; })
+    .attr('fill', 'none')
+    .attr('stroke', function(d) { return yearColor(d.year); })
+    .attr('stroke-width', 0.5).attr('stroke-opacity', 0.5)
+    .style('filter', 'url(#kg-glow2)');
+
+  /* Paper nodes: main circle */
+  node.filter(function(d) { return d.type === 'paper'; })
+    .append('circle')
+    .attr('r', nodeRadius)
+    .attr('fill', function(d) { return yearColor(d.year); })
+    .attr('fill-opacity', 0.72)
+    .attr('stroke', function(d) { return yearColor(d.year); })
+    .attr('stroke-width', 1.2).attr('stroke-opacity', 0.9);
+
+  /* ── Tooltip ── */
+  var tt = d3.select('body').append('div').attr('id', 'kg-tt')
+    .style('position', 'fixed').style('display', 'none')
+    .style('background', 'rgba(8,14,28,0.97)')
+    .style('border', '1px solid rgba(66,153,225,0.4)')
+    .style('border-radius', '10px').style('padding', '10px 14px')
+    .style('max-width', '310px').style('pointer-events', 'none')
+    .style('z-index', '9999').style('font-size', '11px')
+    .style('font-family', "'Noto Sans SC', sans-serif")
+    .style('line-height', '1.6')
+    .style('box-shadow', '0 6px 28px rgba(0,0,0,0.7)');
+
+  function posT(event) {
+    var x = event.clientX + 14, y = event.clientY - 10;
+    if (x + 320 > window.innerWidth) x = event.clientX - 322;
+    if (y + 130 > window.innerHeight) y = event.clientY - 130;
+    tt.style('left', x + 'px').style('top', y + 'px');
+  }
+
+  node.on('mouseover', function(event, d) {
+    var html = '';
+    if (d.type === 'center') {
+      html = '<div style="color:#63b3ed;font-weight:700;margin-bottom:5px;font-size:12px">🎯 目标论文</div>' +
+             '<div style="color:#e2e8f0;font-size:11px">' + d.title + '</div>';
+    } else {
+      var col = yearColor(d.year);
+      html = '<div style="color:#e2e8f0;font-weight:600;margin-bottom:6px;font-size:11px;line-height:1.5">' + d.title + '</div>';
+      var meta = [];
+      if (d.year) meta.push('<span style="color:#a0aec0">📅 ' + d.year + '</span>');
+      if (d.citations) meta.push('<span style="color:#68d391">📊 被引 ' + d.citations + ' 次</span>');
+      if (d.country) meta.push('<span style="color:#fbd38d">🌍 ' + d.country + '</span>');
+      if (meta.length)
+        html += '<div style="font-size:10px;display:flex;flex-wrap:wrap;gap:6px;margin-bottom:3px">' + meta.join('') + '</div>';
+      if (d.institution)
+        html += '<div style="color:#718096;font-size:10px">' + d.institution + '</div>';
+      if (d.link)
+        html += '<div style="color:#63b3ed;font-size:10px;margin-top:5px">点击打开论文链接 →</div>';
+    }
+    tt.style('display', 'block').html(html);
+    posT(event);
+    d3.select(this).select('circle:last-of-type').attr('fill-opacity', d.type === 'paper' ? 1 : null);
+  }).on('mousemove', posT)
+    .on('mouseout', function(event, d) {
+      tt.style('display', 'none');
+      d3.select(this).select('circle:last-of-type').attr('fill-opacity', d.type === 'paper' ? 0.72 : null);
+    })
+    .on('click', function(event, d) {
+      if (d.link && d.type === 'paper') {
+        event.stopPropagation();
+        window.open(d.link, '_blank');
+      }
+    });
+
+  /* ── Tick ── */
+  sim.on('tick', function() {
+    link
+      .attr('x1', function(d) { return d.source.x; })
+      .attr('y1', function(d) { return d.source.y; })
+      .attr('x2', function(d) { return d.target.x; })
+      .attr('y2', function(d) { return d.target.y; });
+    node.attr('transform', function(d) {
+      return 'translate(' + d.x + ',' + d.y + ')';
+    });
+  });
+
+  /* ── Reset button ── */
+  var resetBtn = document.getElementById('kg-reset-btn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function() {
+      svg.transition().duration(650)
+        .call(zoom.transform, d3.zoomIdentity.translate(0, 0).scale(1));
+    });
+  }
+
+  /* ── Year legend ── */
+  var legSvg = d3.select('#kg-legend-svg');
+  if (!legSvg.empty()) {
+    var lgDefs = legSvg.append('defs');
+    var grad = lgDefs.append('linearGradient').attr('id', 'kg-leg-grad')
+      .attr('x1', '0%').attr('y1', '0%').attr('x2', '100%').attr('y2', '0%');
+    grad.append('stop').attr('offset', '0%').attr('stop-color', '#9f7aea');
+    grad.append('stop').attr('offset', '50%').attr('stop-color', '#4299e1');
+    grad.append('stop').attr('offset', '100%').attr('stop-color', '#48bb78');
+    legSvg.append('rect').attr('width', 160).attr('height', 12).attr('rx', 3)
+      .attr('fill', 'url(#kg-leg-grad)');
+  }
+  var minYEl = document.getElementById('kg-year-min');
+  var maxYEl = document.getElementById('kg-year-max');
+  if (minYEl) minYEl.textContent = minY;
+  if (maxYEl) maxYEl.textContent = maxY;
+})();
+"""
+        kg_script = ('<script>\n' +
+                     _js_code.replace('KG_DATA_PLACEHOLDER', kg_data_json) +
+                     '\n</script>')
+
         # ── Target paper title display
         canonical_titles = canonical_titles or []
         if canonical_titles:
@@ -1556,6 +1914,7 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
 <style>{self._CSS}</style>
 </head>
 <body>
@@ -1703,6 +2062,8 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
   <div class="section-divider"></div>
 </div>
 <div class="insights-grid">{insights_html}</div>
+
+{kg_section_html}
 
 </div><!-- /main -->
 <div class="footer">
@@ -1935,6 +2296,7 @@ new Chart(document.getElementById('cTrend'), {{
   }});
 }})();
 </script>
+{kg_script}
 </body>
 </html>"""
         return html
