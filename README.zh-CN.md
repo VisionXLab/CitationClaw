@@ -5,7 +5,7 @@
 </div>
 
 <div align="center">
-  <img src="docs/assets/logo.png" width="80%" alt="CitationClaw Logo"><br>
+  <img src="docs/assets/logo.png" width="60%" alt="CitationClaw Logo"><br>
 
 # CitationClaw — 从引用洞察知识网络
 

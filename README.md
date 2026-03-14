@@ -5,7 +5,7 @@ English | [中文](./README.zh-CN.md)
 </div>
 
 <div align="center">
-  <img src="docs/assets/logo.png" width="80%" alt="CitationClaw Logo"><br>
+  <img src="docs/assets/logo.png" width="60%" alt="CitationClaw Logo"><br>
 
 # CitationClaw: A Lightweight Engine for Discovering Scientific Impact through Citations
 
