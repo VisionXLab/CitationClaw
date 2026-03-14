@@ -5,9 +5,12 @@ English | [中文](./README.zh-CN.md)
 </div>
 
 <div align="center">
-  <img src="docs/assets/logo.png" width="110" alt="CitationClaw Logo"><br>
+  <img src="docs/assets/logo.png" width="100%" alt="CitationClaw Logo"><br>
 
-# CitationClaw: Ultra-Lightweight Citation Portrait Agent 🦞
+# CitationClaw: A Lightweight Engine for Discovering Scientific Impact through Citations
+
+让每一次引用都成为可解释的影响力  
+<em>Turning Every Citation into Explainable Impact</em>
 
 [![Homepage](https://img.shields.io/badge/Homepage-CitationClaw-blue)](https://visionxlab.github.io/CitationClaw/)
 [![PyPI](https://img.shields.io/pypi/v/citationclaw?logo=pypi&logoColor=white&color=0073b7)](https://pypi.org/project/citationclaw/)
