@@ -18,6 +18,7 @@ class AuthorIntelSkill:
         citing_paper = kwargs.get("citing_paper")
         target_paper_authors = kwargs.get("target_paper_authors", "")
         author_cache = kwargs.get("author_cache")
+        quota_event = kwargs.get("quota_event")
 
         searcher = AuthorSearcher(
             api_key=config.openai_api_key,
@@ -36,6 +37,7 @@ class AuthorIntelSkill:
             debug_mode=config.debug_mode,
             target_paper_authors=target_paper_authors,
             author_cache=author_cache,
+            cancel_event=quota_event,
         )
 
         await searcher.search(
