@@ -818,7 +818,9 @@ class GoogleScholarScraper:
                 f.flush()
 
                 if page_callback:
-                    await page_callback(paper_dict, year)
+                    _result = page_callback(paper_dict, year)
+                    if asyncio.iscoroutine(_result):
+                        await _result
 
                 # 准备下一页
                 previous_url = current_url
@@ -927,7 +929,9 @@ class GoogleScholarScraper:
                         total_papers_all_years += stats['papers']
 
                         if year_complete_callback and not (cancel_check and cancel_check()):
-                            await year_complete_callback(year)
+                            _result = year_complete_callback(year)
+                            if asyncio.iscoroutine(_result):
+                                await _result
 
                         # 如果达到1000条限制，弹出警告
                         if stats['hit_limit']:
@@ -1246,7 +1250,9 @@ class GoogleScholarScraper:
                 f.flush()  # 立即写入磁盘
 
                 if page_callback:
-                    await page_callback(paper_dict, None)
+                    _result = page_callback(paper_dict, None)
+                    if asyncio.iscoroutine(_result):
+                        await _result
 
                 self.log_callback(f"✅ 第 {page_count} 页完成,共 {paper_count_this_page} 篇论文")
 
