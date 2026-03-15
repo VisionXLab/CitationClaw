@@ -209,7 +209,14 @@ class AuthorSearcher:
                         self.cancel_event.set()
                     return 'ERROR'
                 self.log_callback(f"⚠️ API配额超限，60秒后重试（第{quota_retry_count + 1}/3次）...")
-                await asyncio.sleep(60)
+                if self.cancel_event:
+                    try:
+                        await asyncio.wait_for(asyncio.shield(self.cancel_event.wait()), timeout=60)
+                        return 'ERROR'
+                    except asyncio.TimeoutError:
+                        pass
+                else:
+                    await asyncio.sleep(60)
                 return await self.search_fn(query, retry_count, max_retries, log_prefix, quota_retry_count + 1)
 
             # 其他错误（包括超时）- 使用指数退避重试
@@ -266,7 +273,14 @@ class AuthorSearcher:
                         self.cancel_event.set()
                     return 'ERROR'
                 self.log_callback(f"⚠️ API配额超限，60秒后重试（第{quota_retry_count + 1}/3次）...")
-                await asyncio.sleep(60)
+                if self.cancel_event:
+                    try:
+                        await asyncio.wait_for(asyncio.shield(self.cancel_event.wait()), timeout=60)
+                        return 'ERROR'
+                    except asyncio.TimeoutError:
+                        pass
+                else:
+                    await asyncio.sleep(60)
                 return await self.chat_fn(query, retry_count, max_retries, log_prefix, quota_retry_count + 1)
 
             # 其他错误（包括超时）- 使用指数退避重试
@@ -325,7 +339,14 @@ class AuthorSearcher:
                         self.cancel_event.set()
                     return 'ERROR'
                 self.log_callback(f"⚠️ API配额超限，60秒后重试（第{quota_retry_count + 1}/3次）...")
-                await asyncio.sleep(60)
+                if self.cancel_event:
+                    try:
+                        await asyncio.wait_for(asyncio.shield(self.cancel_event.wait()), timeout=60)
+                        return 'ERROR'
+                    except asyncio.TimeoutError:
+                        pass
+                else:
+                    await asyncio.sleep(60)
                 return await self.format_fn(query, retry_count, max_retries, log_prefix, quota_retry_count + 1)
 
             # 其他错误（包括超时）- 使用指数退避重试
@@ -383,7 +404,14 @@ class AuthorSearcher:
                         self.cancel_event.set()
                     return 'ERROR'
                 self.log_callback(f"⚠️ API配额超限，60秒后重试（第{quota_retry_count + 1}/3次）...")
-                await asyncio.sleep(60)
+                if self.cancel_event:
+                    try:
+                        await asyncio.wait_for(asyncio.shield(self.cancel_event.wait()), timeout=60)
+                        return 'ERROR'
+                    except asyncio.TimeoutError:
+                        pass
+                else:
+                    await asyncio.sleep(60)
                 return await self.verify_fn(query, retry_count, max_retries, log_prefix, quota_retry_count + 1)
 
             # 其他错误（包括超时）- 使用指数退避重试
@@ -438,7 +466,14 @@ class AuthorSearcher:
                         self.cancel_event.set()
                     return False
                 self.log_callback(f"⚠️ API配额超限，60秒后重试（第{quota_retry_count + 1}/3次）...")
-                await asyncio.sleep(60)
+                if self.cancel_event:
+                    try:
+                        await asyncio.wait_for(asyncio.shield(self.cancel_event.wait()), timeout=60)
+                        return False
+                    except asyncio.TimeoutError:
+                        pass
+                else:
+                    await asyncio.sleep(60)
                 return await self._check_self_citation_llm(
                     authors_with_profile, searched_affiliation, retry_count, max_retries, quota_retry_count + 1
                 )
@@ -446,7 +481,7 @@ class AuthorSearcher:
                 wait_time = min(2 ** retry_count, 15)
                 await asyncio.sleep(wait_time)
                 return await self._check_self_citation_llm(
-                    authors_with_profile, searched_affiliation, retry_count + 1, max_retries
+                    authors_with_profile, searched_affiliation, retry_count + 1, max_retries, quota_retry_count
                 )
             self.log_callback(f"⚠️ 自引检测LLM调用失败，默认视为非自引: {e}")
             return False
