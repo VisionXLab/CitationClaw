@@ -2022,7 +2022,7 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
   <div class="header-eyebrow">CitationClaw</div>
   <h1>引用论文<em>多维画像</em>分析报告</h1>
   {header_targets_html}
-  <p class="header-subtitle">基于 {total_papers} 篇引用论文与 {stats['unique_scholars']} 位知名学者（含 {stats['fellow_count']} 位院士/Fellow{'' if stats['top_award_count'] == 0 else f'、{stats[\'top_award_count\']} 位国际顶级奖项得主'}）数据，结合大模型对引用描述的深度解读，全面呈现学术影响力格局</p>
+  <p class="header-subtitle">基于 {total_papers} 篇引用论文与 {stats['unique_scholars']} 位知名学者（含 {stats['fellow_count']} 位院士/Fellow{'' if stats['top_award_count'] == 0 else f"、{stats['top_award_count']} 位国际顶级奖项得主"}）数据，结合大模型对引用描述的深度解读，全面呈现学术影响力格局</p>
   <div class="header-divider"></div>
 </div>
 
@@ -2031,7 +2031,7 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
   <div class="stat-item"><div class="stat-icon">📄</div><div class="stat-num">{total_papers}</div><div class="stat-label">引用论文总数</div>{self_cite_sub}</div>
   <div class="stat-item"><div class="stat-icon">🎓</div><div class="stat-num">{stats['unique_scholars']}</div><div class="stat-label">知名学者数量</div></div>
   <div class="stat-item"><div class="stat-icon">🏅</div><div class="stat-num">{stats['fellow_count']}</div><div class="stat-label">院士 / Fellow</div></div>
-  {f'<div class="stat-item"><div class="stat-icon">🏆</div><div class="stat-num">{stats[\'top_award_count\']}</div><div class="stat-label">顶级奖项得主</div></div>' if stats['top_award_count'] > 0 else ''}
+  {f'<div class="stat-item"><div class="stat-icon">🏆</div><div class="stat-num">{stats["top_award_count"]}</div><div class="stat-label">顶级奖项得主</div></div>' if stats['top_award_count'] > 0 else ''}
   <div class="stat-item"><div class="stat-icon">🌍</div><div class="stat-num">{stats['country_count']}</div><div class="stat-label">覆盖国家/地区</div></div>
   <div class="stat-item"><div class="stat-icon">🔥</div><div class="stat-num">{stats['max_cit']}</div><div class="stat-label">最高单篇被引量</div></div>
 </div>
