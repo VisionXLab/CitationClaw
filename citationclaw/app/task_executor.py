@@ -684,23 +684,27 @@ class TaskExecutor:
                     if source_scholar_file.exists():
                         df_full = pd.read_excel(excel_file)
                         df_renowned_scholars = pd.read_excel(source_scholar_file)
-                        # 从院士/Fellow文件取所在施引论文的唯一标题集合
-                        renowned_titles = set(
-                            df_renowned_scholars['PaperTitle'].dropna().str.strip()
-                        )
-                        # 过滤全量论文文件，保留大佬论文行并按 Paper_Title 去重
-                        # → 正确列名格式，且每篇论文只搜索一次
-                        df_phase4 = (
-                            df_full[df_full['Paper_Title'].str.strip().isin(renowned_titles)]
-                            .drop_duplicates(subset=['Paper_Title'])
-                            .reset_index(drop=True)
-                        )
-                        phase4_input = result_dir / f"{output_prefix}_temp_phase4_renowned.xlsx"
-                        df_phase4.to_excel(phase4_input, index=False)
-                        _renowned_only_mode = True
-                        self.log_manager.info(
-                            f"  → {len(df_phase4)} 篇院士/Fellow论文（去重），共 {df_full['Paper_Title'].nunique()} 篇"
-                        )
+                        # 全量文件为空（如阈值过滤后0篇）时直接跳过 Phase 4
+                        if df_full.empty or 'Paper_Title' not in df_full.columns:
+                            self.log_manager.warning("⚠️ 全量论文文件为空，跳过 Phase 4 引用描述搜索")
+                            config = config.model_copy(update={"enable_citing_description": False})
+                        else:
+                            renowned_titles = set(
+                                df_renowned_scholars['PaperTitle'].dropna().str.strip()
+                            )
+                            # 过滤全量论文文件，保留大佬论文行并按 Paper_Title 去重
+                            # → 正确列名格式，且每篇论文只搜索一次
+                            df_phase4 = (
+                                df_full[df_full['Paper_Title'].str.strip().isin(renowned_titles)]
+                                .drop_duplicates(subset=['Paper_Title'])
+                                .reset_index(drop=True)
+                            )
+                            phase4_input = result_dir / f"{output_prefix}_temp_phase4_renowned.xlsx"
+                            df_phase4.to_excel(phase4_input, index=False)
+                            _renowned_only_mode = True
+                            self.log_manager.info(
+                                f"  → {len(df_phase4)} 篇院士/Fellow论文（去重），共 {df_full['Paper_Title'].nunique()} 篇"
+                            )
                     else:
                         self.log_manager.warning("⚠️ 未找到院士/Fellow学者文件，将搜索全部论文")
                 elif config.citing_description_scope == "specified_only":
