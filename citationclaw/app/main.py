@@ -87,13 +87,73 @@ class ConfigUpdate(BaseModel):
     retry_intervals: str = "5,10,20"
     dc_retry_max_attempts: int = 3
     author_search_prompt1: str = "这是一篇论文。请你根据这个paper_link和paper_title，去搜索查阅这篇论文的作者列表，然后输出每个作者的名字及其对应的单位名称。"
-    author_search_prompt2: str = "这是一篇论文及作者列表。请你根据这篇论文、作者名字和作者单位，去搜索该每位作者的个人信息，输出每位作者的谷歌学术累积引用（如有）、重大学术头衔（比如是否IEEE/ACM/ACL等学术Fellow、中国科学院院士、中国工程院院士、国外院士如欧洲科学院院士、诺贝尔奖得主、图灵奖得主，国家杰青、长江学者、优青、在国外著名机构（例如google，deepmind，meta，openai）就业的人士，或在AI领域的国际知名人物），行政职位（如国内外知名大学的校长或院长）。"
+    author_search_prompt2: str = """这是一篇论文及作者列表。请你根据这篇论文、作者名字和作者单位，去搜索该每位作者的个人信息，输出每位作者的以下信息：
+
+1. **谷歌学术累积引用**（如有）
+
+2. **重大学术头衔**（包括但不限于以下类别）：
+   - **国际顶级奖项得主**：诺贝尔奖（Nobel Prize）、图灵奖（Turing Award）、菲尔兹奖（Fields Medal）、阿贝尔奖（Abel Prize）、沃尔夫奖（Wolf Prize）、克拉福德奖（Crafoord Prize）、奈望林纳奖（Nevanlinna Prize/IMU Abacus Medal）、哥德尔奖（Gödel Prize）、 ACM Prize in Computing、IEEE Medal of Honor、富兰克林奖章（Franklin Medal）、科学突破奖（Breakthrough Prize）、拉斯克奖（Lasker Award）、邵逸夫奖（Shaw Prize）等
+   - **院士头衔**：中国科学院院士、中国工程院院士、国外院士（如欧洲科学院院士、美国国家科学院院士、美国国家工程院院士、美国艺术与科学院院士、英国皇家学会院士/会士、德国科学院院士、法国科学院院士、瑞典皇家科学院院士等）
+   - **学会Fellow**：IEEE Fellow/ACM Fellow/ACL Fellow/AAAI Fellow/AAAS Fellow/SIAM Fellow/APS Fellow/AMS Fellow等
+   - **国家级人才计划**：国家杰出青年科学基金（杰青）、长江学者、国家优秀青年科学基金（优青）、海外优青、万人计划等
+   - **其他重要学术荣誉**：IEEE Life Fellow、ACM Distinguished Scientist、斯隆研究奖（Sloan Research Fellowship）、Packard Fellowship、ERC Consolidator/Advanced Grant获得者等
+
+3. **著名机构任职**：在国外著名研究机构（如Google Research、DeepMind、OpenAI、Meta AI、Microsoft Research、IBM Research、Bell Labs）或顶尖高校（如MIT、Stanford、CMU、Berkeley、Caltech、Harvard、Princeton、Oxford、Cambridge等）担任重要职位的学者
+
+4. **行政职位**：国内外知名大学的校长、副校长、院长、系主任，或国家级研究机构负责人等"""
     enable_renowned_scholar_filter: bool = True
     renowned_scholar_model: str = "gemini-3-flash-preview-nothinking"
-    renowned_scholar_prompt: str = "这是一篇论文的作者列表信息。现在，请你根据这些作者信息，找到那些国内外享誉盛名的学者。对于中国学者，着重找到那些院士级别、校长等重要行政职务的学者。对于海外学者，着重找到那些来自国际著名研究机构如谷歌、微软（google，deepmind，meta，openai），以及有海外院士头衔的学者。若该作者列表里没有这样的重要学者，则输出\"无\"。"
+    renowned_scholar_prompt: str = """以上是一篇论文的作者列表信息。
+### 任务指南：
+1. **高影响力判定 (is_high_impact)**：学术影响力大（满足以下任一条件）：
+   - **国际顶级奖项得主**：诺贝尔奖、图灵奖、菲尔兹奖、阿贝尔奖、沃尔夫奖、克拉福德奖、奈望林纳奖/IMU Abacus Medal、哥德尔奖、ACM Prize in Computing、IEEE Medal of Honor、科学突破奖、拉斯克奖、邵逸夫奖等
+   - **院士头衔**：中科院院士、工程院院士、各国国家科学院/工程院院士、欧洲科学院院士、英国皇家学会会士等
+   - **知名学会Fellow**：IEEE Fellow、ACM Fellow、ACL Fellow、AAAI Fellow、AAAS Fellow、SIAM Fellow、APS Fellow等
+   - **国家级人才计划**：国家杰青、长江学者特聘教授、优青、万人计划等
+   - **顶尖机构核心成员**：Google/DeepMind/OpenAI/Meta AI/Microsoft Research的首席科学家、研究主管、Distinguished Scientist等
+   - **企业界大佬**：知名科技公司首席科学家、VP、AI/研究部门负责人
+   - **重要行政职务**：顶尖大学校长、副校长、院长等
+   除此之外，其他普通教授或学者一律不保留。
+
+2. **无重量级作者**：若作者信息明确说明无重量级作者，只需要输出'无任何重量级学者'。
+
+3. **有重量级作者**：若有重量级作者，只输出那些顶级大佬级别的学者，进一步总结每位重量级作者的元信息，包括姓名、机构、国家、职务、荣誉称号。每位重量级作者之间用 $$$分隔符$$$ 来隔开，输出格式参考如下：
+
+（输出格式参考）：
+$$$分隔符$$$
+重量级作者1
+姓名
+机构（当前最新任职单位）
+国家
+职务（在行政单位或著名研究机构的职务或职称）
+荣誉称号（所获得的学术头衔或国际重量级头衔，必须包含具体奖项名称如'图灵奖得主2018'、'菲尔兹奖得主2014'等）
+$$$分隔符$$$
+重量级作者2
+姓名
+机构（当前最新任职单位）
+国家
+职务（在行政单位或著名研究机构的职务或职称）
+荣誉称号（所获得的学术头衔或国际重量级头衔）
+
+直至所有的重量级作者都被记录下来。记住，无需任何前言后记。"""
     enable_author_verification: bool = False
     author_verify_model: str = "gemini-3-pro-preview-search"
-    author_verify_prompt: str = "这是一份已经整理好的作者学术信息列表。请你对列表中的每一位作者信息进行真实性校验。"
+    author_verify_prompt: str = """这是一份已经整理好的作者学术信息列表。请你对列表中的每一位作者信息进行真实性校验。你需要执行以下任务：
+1. 针对每位作者，核查其姓名、所属单位、谷歌学术引用量、学术头衔、行政职位是否真实存在。
+2. 必须通过可靠公开来源进行核验，包括但不限于：
+   - 学术数据库：Google Scholar、DBLP、ORCID、ResearchGate、Web of Science
+   - 官方奖项网站：诺贝尔奖官网(nobelprize.org)、图灵奖官网(acm.org/turing-award)、菲尔兹奖官网(mathunion.org)、阿贝尔奖官网(abelprize.no)、沃尔夫奖官网(wolffund.org.il)、克拉福德奖官网(crafoordprize.se)、科学突破奖官网(breakthroughprize.org)、邵逸夫奖官网(shawprize.org)
+   - 学会官方：IEEE Fellow Directory、ACM Awards、ACL Awards、AAAI Fellows
+   - 官方机构：中国科学院官网、中国工程院官网、各国科学院官网
+   - 学术主页：大学官网主页、ResearchGate
+3. 对每条信息分别标注核验结果，格式为：
+   - 正确（Verified）：可被权威来源明确证实。
+   - 存疑（Uncertain）：存在部分证据但不充分或信息冲突。
+   - 错误（Incorrect）：无法找到可信来源或存在明显错误。
+4. 若发现错误或存疑，请给出修正后的准确信息（若能确定）。
+5. 对每条核验内容，必须给出对应的来源链接或来源名称。
+6. 最终输出结构化结果，包括：作者姓名、原始信息、核验结论、修正信息（如有）、核验来源。
+7. 若无法找到任何可信来源，请明确说明"未检索到可信来源支持该信息"，禁止基于推测补充信息。"""
     enable_citing_description: bool = True
     enable_dashboard: bool = True
     service_tier: str = "full"
