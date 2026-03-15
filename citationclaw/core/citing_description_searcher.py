@@ -41,6 +41,7 @@ class CitingDescriptionSearcher:
 
     async def _search_fn(self, query: str, retries: int = 3, log_prefix: str = "") -> str:
         """调用搜索API（启用web_search_options）"""
+        quota_failures = 0
         for i in range(retries):
             try:
                 comp = await self.client.chat.completions.create(
@@ -55,10 +56,22 @@ class CitingDescriptionSearcher:
                 is_quota = 'rate' in error_msg or 'quota' in error_msg or 'limit' in error_msg
 
                 if is_quota:
-                    if self.cancel_event and not self.cancel_event.is_set():
-                        self.log(f"{log_prefix}❌ API配额持续不足，已停止重试。")
-                        self.cancel_event.set()
-                    return "NONE"
+                    quota_failures += 1
+                    if quota_failures >= 2:
+                        if self.cancel_event and not self.cancel_event.is_set():
+                            self.log(f"{log_prefix}❌ API配额持续不足，已停止重试。")
+                            self.cancel_event.set()
+                        return "NONE"
+                    self.log(f"{log_prefix}⚠️ API配额超限，60秒后重试（第{quota_failures}/2次）...")
+                    if self.cancel_event:
+                        try:
+                            await asyncio.wait_for(asyncio.shield(self.cancel_event.wait()), timeout=60)
+                            return "NONE"
+                        except asyncio.TimeoutError:
+                            pass
+                    else:
+                        await asyncio.sleep(60)
+                    continue
                 if i < retries - 1:
                     if i == 0 and not is_timeout:
                         self.log(f"{log_prefix}⚠️ 搜索API错误: {e}，正在启用重试机制，请耐心等待！")
@@ -67,6 +80,7 @@ class CitingDescriptionSearcher:
                     if not is_timeout:
                         self.log(f"{log_prefix}⚠️ 搜索API错误: {e}")
                     return "NONE"
+        return "NONE"
 
     async def _get_target_authors(self, target_title: str, log_prefix: str = "") -> str:
         """获取目标论文作者（带缓存+锁，同一目标论文只查一次LLM）"""
@@ -90,6 +104,8 @@ class CitingDescriptionSearcher:
         self, target_title: str, citing_title: str, citing_url: str, log_prefix: str = ""
     ) -> str:
         """搜索 citing_title 中对 target_title 的引用描述"""
+        if self.cancel_event and self.cancel_event.is_set():
+            return "NONE"
         # Step1: 找目标论文作者（缓存，同一目标论文只查一次LLM）
         authors = await self._get_target_authors(target_title, log_prefix=log_prefix)
 
