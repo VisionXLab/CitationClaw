@@ -577,7 +577,8 @@ class GoogleScholarScraper:
         output_file: Path,
         sleep_seconds: int = 10,
         cancel_check: Optional[Callable[[], bool]] = None,
-        expected_count: int = 0
+        expected_count: int = 0,
+        page_callback: Optional[Callable] = None,
     ) -> dict:
         """
         抓取单个年份的引用数据
@@ -816,6 +817,9 @@ class GoogleScholarScraper:
                 f.write(json.dumps({f'page_{page_count}': record}, ensure_ascii=False) + '\n')
                 f.flush()
 
+                if page_callback:
+                    await page_callback(paper_dict, year)
+
                 # 准备下一页
                 previous_url = current_url
                 current_url = next_page
@@ -840,7 +844,10 @@ class GoogleScholarScraper:
         start_page: int = 0,
         sleep_seconds: int = 10,
         cancel_check: Optional[Callable[[], bool]] = None,
-        enable_year_traverse: bool = False
+        enable_year_traverse: bool = False,
+        page_callback: Optional[Callable] = None,
+        year_complete_callback: Optional[Callable] = None,
+        cached_years: Optional[set] = None,
     ):
         """
         抓取Google Scholar引用列表（带自动重启和完整性核对）
@@ -890,6 +897,12 @@ class GoogleScholarScraper:
                             self.log_callback("任务已取消")
                             break
 
+                        # 跳过已完整缓存的年份
+                        if cached_years and year in cached_years:
+                            self.log_callback(f"💾 [Phase1缓存] {year} 年已缓存，跳过")
+                            self.progress_callback(idx + 1, len(year_data))
+                            continue
+
                         self.log_callback(f"\n{'=' * 60}")
                         self.log_callback(f"📅 正在抓取 {year} 年（{idx + 1}/{len(year_data)}）")
                         self.log_callback(f"   预期引用数: {expected_count} 篇")
@@ -906,11 +919,15 @@ class GoogleScholarScraper:
                             output_file=temp_file,
                             sleep_seconds=sleep_seconds,
                             cancel_check=cancel_check,
-                            expected_count=expected_count
+                            expected_count=expected_count,
+                            page_callback=page_callback,
                         )
 
                         year_stats.append(stats)
                         total_papers_all_years += stats['papers']
+
+                        if year_complete_callback and not (cancel_check and cancel_check()):
+                            await year_complete_callback(year)
 
                         # 如果达到1000条限制，弹出警告
                         if stats['hit_limit']:
@@ -1227,6 +1244,9 @@ class GoogleScholarScraper:
                 }
                 f.write(json.dumps({f'page_{page_count}': record}, ensure_ascii=False) + '\n')
                 f.flush()  # 立即写入磁盘
+
+                if page_callback:
+                    await page_callback(paper_dict, None)
 
                 self.log_callback(f"✅ 第 {page_count} 页完成,共 {paper_count_this_page} 篇论文")
 
