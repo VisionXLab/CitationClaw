@@ -1093,7 +1093,7 @@ function escHtml(s) {
 #cc-ui-send:disabled{opacity:0.4;cursor:default}
 </style>
 
-<button id="cc-ui-fab" onclick="ccuiToggle()" title="CitationClaw 使用助手"><img src="/docs-assets/head_logo.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none"></button>
+<button id="cc-ui-fab" onclick="ccuiToggle()" title="CitationClaw 使用助手"><img src="/static/citationclaw_icon.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none"></button>
 <div id="cc-ui-win" style="display:none">
   <div id="cc-ui-header">
     <div>
@@ -1131,7 +1131,7 @@ function escHtml(s) {
     var win = document.getElementById('cc-ui-win');
     var fab = document.getElementById('cc-ui-fab');
     win.style.display = isOpen ? 'flex' : 'none';
-    fab.innerHTML = isOpen ? '✕' : '<img src="/docs-assets/head_logo.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none">';
+    fab.innerHTML = isOpen ? '✕' : '<img src="/static/citationclaw_icon.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none">';
     fab.style.fontSize = isOpen ? '18px' : '';
     if (isOpen) { var inp = document.getElementById('cc-ui-input'); if(inp) inp.focus(); }
   };
