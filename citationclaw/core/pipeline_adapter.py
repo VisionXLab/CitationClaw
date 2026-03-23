@@ -66,10 +66,15 @@ class PipelineAdapter:
                 sources = ["scholar"]
 
         # Build author-affiliation string (name\naffiliation pairs)
+        # Tag PDF-validated affiliations with [PDF] marker
         affil_lines = []
         for a in authors:
             affil_lines.append(a.get("name", ""))
-            affil_lines.append(a.get("affiliation", "") or "未知机构")
+            affil = a.get("affiliation", "") or "未知机构"
+            src = a.get("affiliation_source", "")
+            if src == "pdf" and affil != "未知机构":
+                affil = f"{affil} [PDF✓]"
+            affil_lines.append(affil)
         searched_affiliation = "\n".join(affil_lines)
 
         # First author info (normalize country to Chinese)
