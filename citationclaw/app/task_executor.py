@@ -491,64 +491,70 @@ class TaskExecutor:
         n_search = len(papers_with_candidates)
         self.log_manager.info(f"[搜索LLM] {n_search} 篇非自引论文含候选学者，并行搜索 (10 workers)...")
 
-        # Parallel search LLM calls
+        # Parallel search LLM calls with retry + real-time logging
         search_sem = asyncio.Semaphore(10)
+        paper_scholar_map: dict = {}  # paper_title_lower → list of scholar dicts
+        global_seen_keys: set = set()
+        global_unique_count = 0
+        search_done = 0
 
         async def _search_one(idx: int, paper: dict, metadata: dict):
+            nonlocal search_done, global_unique_count
+            title = paper.get("paper_title", "")
+
             async with search_sem:
                 if self.should_cancel:
-                    return []
-                try:
-                    return await search_agent.search_paper_authors(
-                        paper_title=paper.get("paper_title", ""),
-                        authors=metadata.get("authors", []),
-                    )
-                except Exception:
-                    return []
+                    return
+
+                # Retry up to 2 times on connection errors
+                raw = []
+                for attempt in range(3):
+                    try:
+                        raw = await search_agent.search_paper_authors(
+                            paper_title=title,
+                            authors=metadata.get("authors", []),
+                        )
+                        break  # Success
+                    except Exception as e:
+                        if attempt < 2:
+                            await asyncio.sleep(3 * (attempt + 1))  # 3s, 6s backoff
+                        else:
+                            self.log_manager.info(f"  [{idx+1}/{n_search}] {title[:45]}... → ⚠ 失败: {str(e)[:40]}")
+                            raw = []
+
+                search_done += 1
+
+                # Process results immediately (real-time logging)
+                if raw:
+                    found = []
+                    for r in raw:
+                        if r.name and r.tier:
+                            found.append({
+                                "name": r.name, "tier": r.tier,
+                                "honors": [r.honors] if r.honors else [],
+                                "affiliation": r.affiliation,
+                                "country": r.country, "position": r.position,
+                            })
+                            name_keys = ScholarSearchAgent._extract_name_keys(r.name)
+                            if not (name_keys & global_seen_keys):
+                                global_unique_count += 1
+                            global_seen_keys.update(name_keys)
+                    if found:
+                        paper_scholar_map[title.lower().strip()] = found
+                        labels = "; ".join(f"{s['tier']}: {s['name']}" for s in found)
+                        self.log_manager.info(f"  [{search_done}/{n_search}] {title[:45]}... → {labels}")
+                    else:
+                        self.log_manager.info(f"  [{search_done}/{n_search}] {title[:45]}... → 无知名学者")
+                else:
+                    self.log_manager.info(f"  [{search_done}/{n_search}] {title[:45]}... → 无知名学者")
 
         try:
-            tasks = [
+            await asyncio.gather(*[
                 _search_one(idx, paper, metadata)
                 for idx, (paper, metadata, canonical) in enumerate(papers_with_candidates)
-            ]
-            search_results_list = await asyncio.gather(*tasks)
+            ])
         finally:
             await search_agent.close()
-
-        # Build per-paper scholar map (keyed by paper_title, not scholar name)
-        paper_scholar_map: dict = {}  # paper_title_lower → list of scholar dicts
-        global_seen_keys: set = set()  # All name variant keys seen across all papers
-        global_unique_count = 0
-
-        for idx, (paper, metadata, canonical) in enumerate(papers_with_candidates):
-            title = paper.get("paper_title", "")
-            raw = search_results_list[idx]
-            if not raw:
-                self.log_manager.info(f"  [{idx+1}/{n_search}] {title[:50]}... → 无知名学者")
-                continue
-            found = []
-            for r in raw:
-                if r.name and r.tier:
-                    scholar_dict = {
-                        "name": r.name,
-                        "tier": r.tier,
-                        "honors": [r.honors] if r.honors else [],
-                        "affiliation": r.affiliation,
-                        "country": r.country,
-                        "position": r.position,
-                    }
-                    found.append(scholar_dict)
-                    # Global dedup tracking
-                    name_keys = ScholarSearchAgent._extract_name_keys(r.name)
-                    if not (name_keys & global_seen_keys):
-                        global_unique_count += 1
-                    global_seen_keys.update(name_keys)
-            if found:
-                paper_scholar_map[title.lower().strip()] = found
-                labels = "; ".join(f"{s['tier']}: {s['name']}" for s in found)
-                self.log_manager.info(f"  [{idx+1}/{n_search}] {title[:50]}... → {labels}")
-            else:
-                self.log_manager.info(f"  [{idx+1}/{n_search}] {title[:50]}... → 无知名学者")
 
         self.log_manager.success(
             f"Phase 3 完成: {global_unique_count} 位知名学者（去重）/ {n_search} 篇论文"
