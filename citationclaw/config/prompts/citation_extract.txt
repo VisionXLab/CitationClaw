@@ -1,0 +1,19 @@
+以下是论文《{citing_title}》中与引用相关的文本段落（来自 PDF 解析）：
+
+{parsed_paragraphs}
+
+请从以上文本中找出引用《{target_title}》的具体描述。
+
+要求：
+1. 只摘录上方文本中真实存在的内容，严禁编造
+2. 注明出现在哪个部分（Introduction/Related Work/Method 等）
+3. 仅当原文有明确积极评价词汇时注明【正面引用】
+4. 找不到则输出"未在已解析文本中找到相关引用描述"
+
+输出格式：
+{{
+  "found": true/false,
+  "section": "出现的章节",
+  "description": "原文摘录",
+  "sentiment": "正面|中性|未标注"
+}}

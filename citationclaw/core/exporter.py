@@ -26,16 +26,47 @@ class ResultExporter:
     def highlight_renowned_scholar(self, flattened, renowned_scholar_excel_outputs):
         ## 标记学者
         def tag_scholar(df):
+            """Tag scholar level based on Title/Job fields.
+
+            Supports both Chinese and international scholar categories.
+            """
             for idx, row in df.iterrows():
-                title = row['Title']
-                if not pd.isnull(title):
-                    if 'Fellowship' not in title:
-                        if '中国科学院院士' in title or '中国工程院院士' in title or '两院院士' in title:
-                            df.at[idx, '两院院士/其他院士/Fellow'] = '院士'
-                        elif '院士' in title:
-                            df.at[idx, '两院院士/其他院士/Fellow'] = '其他院士'
-                        elif 'Fellow' in title or 'fellow' in title:
-                            df.at[idx, '两院院士/其他院士/Fellow'] = 'Fellow'
+                title = str(row.get('Title', '') or '')
+                job = str(row.get('Job', '') or '')
+                combined = f"{title} {job}".lower()
+                tag = ''
+                # 院士级别（最高优先级）
+                if any(k in combined for k in ['中国科学院院士', '中国工程院院士', '两院院士']):
+                    tag = '院士'
+                elif any(k in combined for k in ['院士', 'academician', 'nae', 'nas member',
+                         'national academy', 'fellow of the royal society', 'frs', '欧洲科学院']):
+                    tag = '其他院士'
+                # 重大奖项
+                elif any(k in combined for k in ['turing', '图灵', 'nobel', '诺贝尔', 'fields medal',
+                         '国家最高科学技术奖', '国家科技进步', '国家自然科学奖', '国家技术发明奖',
+                         'wolf prize', '沃尔夫奖', 'abel prize', '阿贝尔奖']):
+                    tag = '重大奖项'
+                # Fellow
+                elif any(k in combined for k in [
+                    'ieee fellow', 'acm fellow', 'acl fellow', 'aaai fellow',
+                    'aps fellow', 'rsc fellow', 'acs fellow',
+                    'ifac fellow', 'asme fellow', 'aaas fellow',
+                    'iapr fellow', 'isca fellow', 'incose fellow',
+                    'iet fellow', 'aaia fellow']):
+                    tag = 'Fellow'
+                # 国家级人才
+                elif any(k in combined for k in ['杰青', '长江', '优青', '万人计划']):
+                    tag = '国家级人才'
+                # 知名机构核心
+                elif any(k in combined for k in ['chief scientist', '首席科学家',
+                         'vp of research', '研究副总裁', 'lab director', '实验室主任',
+                         'distinguished scientist']):
+                    tag = '知名机构核心'
+                # 大学领导层
+                elif any(k in combined for k in ['校长', '院长', 'president', 'dean']):
+                    tag = '大学领导层'
+                if tag:
+                    df.at[idx, '两院院士/其他院士/Fellow'] = tag
             return df
 
         ## 转换df，找到大佬级别
@@ -52,14 +83,15 @@ class ResultExporter:
             if not isinstance(formated_renowned_scholars, list):
                 formated_renowned_scholars = []
             for scholar in formated_renowned_scholars:
-                name = scholar.get('姓名', '')
+                # Support both Chinese keys (v1 legacy) and English keys (v2 new pipeline)
+                name = scholar.get('name', '') or scholar.get('姓名', '')
                 if name != '':
                     scholar_df.append({
                         'Name': name,
-                        'Institution': scholar.get('机构', ''),
-                        'Country': scholar.get('国家', ''),
-                        'Job': scholar.get('职务', ''),
-                        'Title': scholar.get('荣誉称号', ''),
+                        'Institution': scholar.get('institution', '') or scholar.get('机构', ''),
+                        'Country': scholar.get('country', '') or scholar.get('国家', ''),
+                        'Job': scholar.get('position', '') or scholar.get('职务', ''),
+                        'Title': scholar.get('titles', '') or scholar.get('荣誉称号', ''),
                         'PaperTitle': paper_title,
                         'PaperCitations': paper_citation,
                         'PaperYear': paper_year,
@@ -75,7 +107,9 @@ class ResultExporter:
             selected_df = scholar_df.copy()
         else:
             scholar_df = tag_scholar(scholar_df)
-            selected_df = scholar_df[scholar_df['两院院士/其他院士/Fellow'] != ''].reset_index(drop=True)
+            # Top-tier: only 院士/其他院士/Fellow/重大奖项 (not 国家级人才/知名机构核心/大学领导层)
+            _top_tiers = {'院士', '其他院士', 'Fellow', '重大奖项'}
+            selected_df = scholar_df[scholar_df['两院院士/其他院士/Fellow'].isin(_top_tiers)].reset_index(drop=True)
 
         scholar_df.to_excel(renowned_scholar_excel_outputs[0], sheet_name='All Renowned scholars', index=False)
         selected_df.to_excel(renowned_scholar_excel_outputs[1], sheet_name='Top-tier scholars', index=False)

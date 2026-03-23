@@ -64,6 +64,17 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+.agent-navbar-toggler {
+  display: none !important;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 20px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
 .agent-navbar-inner {
   max-width: 1100px;
   margin: 0 auto;
@@ -374,6 +385,104 @@ body {
   transition: all .15s;
 }
 .btn-agent-sm:hover { color: var(--text); border-color: var(--accent); background: var(--accent-light); }
+
+/* ─── Provider Preset Buttons ─── */
+.btn-provider-preset {
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border2);
+  background: var(--bg2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+  font-weight: 500;
+}
+.btn-provider-preset:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+.btn-provider-preset.active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ─── API Config Three-Section Layout ─── */
+.api-config-section {
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 16px;
+  background: var(--bg2);
+}
+.api-config-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.api-config-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--muted);
+  border: 1.5px solid var(--border2);
+  font-size: 11.5px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.api-config-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.api-config-desc {
+  font-size: 12px;
+  color: var(--light);
+  font-weight: 400;
+}
+
+/* ─── Pipeline Architecture Indicator ─── */
+.pipeline-phases {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 0;
+  overflow-x: auto;
+}
+.pipeline-phase {
+  text-align: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg2);
+  border: 1.5px solid var(--border);
+  min-width: 90px;
+  transition: all .3s;
+  flex-shrink: 0;
+}
+.pipeline-phase.active {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  box-shadow: 0 0 12px rgba(37,99,235,0.15);
+}
+.pipeline-phase.done {
+  border-color: var(--green);
+  background: var(--green-light);
+}
+.pp-icon { font-size: 18px; margin-bottom: 4px; color: var(--muted); }
+.pipeline-phase.active .pp-icon { color: var(--accent); }
+.pipeline-phase.done .pp-icon { color: var(--green); }
+.pp-label { font-size: 11px; font-weight: 600; color: var(--text); line-height: 1.3; }
+.pp-source { font-size: 9.5px; color: var(--light); margin-top: 2px; }
+.pipeline-arrow { color: var(--light); font-size: 12px; flex-shrink: 0; }
 
 /* ─── Phase Progress ─── */
 .agent-progress-wrap { margin-bottom: 20px; }
@@ -1020,6 +1129,7 @@ code {
 
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
+  .agent-navbar-toggler { display: block !important; }
   .agent-hero { padding: 26px 20px 22px; }
   .hero-title { font-size: 22px; }
   .agent-page-content, .container { padding: 20px 16px 40px; }

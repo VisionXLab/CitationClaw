@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}CitationClaw{% endblock %}
+{% block title %}CitationClaw v2{% endblock %}
 
 {% block content %}
 
@@ -27,7 +27,7 @@
     <div class="hero-eyebrow">CITATION CLAW</div>
     <h1 class="hero-title">论文被引<span>画像分析</span></h1>
     <p class="hero-desc" style="white-space:nowrap">
-      输入论文题目，智能体将自动检索引用关系、搜索学者画像，并生成多维分析报告。支持多篇同时分析。
+      输入论文题目，系统将通过 OpenAlex / S2 / arXiv 结构化 API 采集作者信息，并自动生成多维引用分析报告。
     </p>
   </div>
 </div>
@@ -57,7 +57,7 @@
           <a href="#" onclick="scholarSelectAll(true);return false;" style="color:var(--accent)">全选</a>
           <a href="#" onclick="scholarSelectAll(false);return false;" style="color:var(--muted)">全不选</a>
         </div>
-        <button class="btn-agent-primary btn-agent-sm"
+        <button class="btn-agent-sm" style="background:var(--green);color:#fff;border-color:var(--green)"
                 onclick="addScholarSelected()">添加所选至分析列表</button>
       </div>
       <div id="scholar-paper-list" style="max-height:340px; overflow-y:auto;
@@ -84,10 +84,10 @@
     <span style="color:var(--light);font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px">选择分析深度与成本的平衡点</span>
   </div>
   <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <select id="idx-service-tier" class="form-select form-select-sm" style="width:auto;min-width:320px;font-size:13px">
-      <option value="basic" selected>基础服务 — 搜索学者 + 筛选大佬（无引文描述分析）</option>
-      <option value="advanced" disabled>进阶服务 — 【紧急维护】暂不可用</option>
-      <option value="full" disabled>全面服务 — 【紧急维护】暂不可用</option>
+    <select id="idx-service-tier" class="form-select form-select-sm" style="width:auto;min-width:360px;font-size:13px">
+      <option value="basic" selected>基础服务 — 学者影响力评估（无引文语境分析）</option>
+      <option value="advanced">进阶服务 — 基础 + 知名学者引文语境提取</option>
+      <option value="full">全面服务 — 基础 + 全部引文语境提取</option>
     </select>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:4px">
@@ -102,7 +102,7 @@
     <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
       <input class="form-check-input" type="checkbox" id="idx-dashboard" checked>
       启用画像报告生成
-      <span style="font-size:11px;color:var(--light)">(Phase 5，需先启用著名学者筛选)</span>
+      <span style="font-size:11px;color:var(--light)">(Phase 5 · 报告生成与导出)</span>
     </label>
   </div>
   <!-- 年份遍历开关（从高级选项提升到主配置区） -->
@@ -119,7 +119,7 @@
   </div>
 </div>
 
-<!-- API Config Card -->
+<!-- API Config Card — Three-Column Layout -->
 <div class="agent-card mb-4" id="api-config-card">
   <div class="agent-card-label" style="display:flex;align-items:center;justify-content:space-between">
     <span><i class="bi bi-key" style="color:var(--accent)"></i>&nbsp; API 配置</span>
@@ -129,60 +129,109 @@
       <i class="bi bi-book"></i> 配置指引
     </a>
   </div>
-  <div class="row g-3">
-    <div class="col-md-6">
-      <label class="form-label">ScraperAPI Key(s) <span style="color:var(--light);font-weight:400">(多个用英文逗号分隔)</span></label>
-      <input type="text" id="idx-scraper-keys" class="form-control" placeholder="key1,key2,key3">
+
+  <!-- ① ScraperAPI -->
+  <div class="api-config-section">
+    <div class="api-config-header">
+      <span class="api-config-num">①</span>
+      <span class="api-config-title">ScraperAPI</span>
+      <span class="api-config-desc">— 爬取 Google Scholar 引用列表</span>
     </div>
-    <div class="col-md-6">
-      <label class="form-label">V-API Key <a href="https://api.gpt.ge/register?aff=qH2n" target="_blank" rel="noopener" style="font-weight:400;font-size:12px;color:var(--light);text-decoration:underline dotted">(前往第三方中转平台注册充值)</a></label>
-      <input type="text" id="idx-openai-key" class="form-control" placeholder="sk-..." autocomplete="off">
+    <input type="text" id="idx-scraper-keys" class="form-control"
+           placeholder="ScraperAPI Key（多个用英文逗号分隔）">
+  </div>
+
+  <!-- ② V-API -->
+  <div class="api-config-section">
+    <div class="api-config-header">
+      <span class="api-config-num">②</span>
+      <span class="api-config-title">V-API</span>
+      <span class="api-config-desc">— 调用搜索 LLM 识别知名学者（需具备 web search 能力）</span>
+      <a href="https://api.gpt.ge/register?aff=qH2n" target="_blank" rel="noopener"
+         style="font-size:11px;color:var(--light);text-decoration:underline dotted;margin-left:auto">注册 V-API</a>
     </div>
-  </div>
-  <div style="margin-top:12px">
-    <button class="btn-agent-sm" type="button"
-        data-bs-toggle="collapse" data-bs-target="#config-advanced"
-        aria-expanded="false" aria-controls="config-advanced"
-        id="idx-advanced-toggle">
-      <i class="bi bi-sliders"></i> 更多配置
-      <span style="font-size:11px;color:var(--light);margin-left:4px">Base URL / 模型 / 前缀 / 画像报告模型</span>
-    </button>
-  </div>
-  <div class="collapse" id="config-advanced">
-    <div class="row g-3" style="margin-top:4px">
-      <div class="col-md-6">
-        <label class="form-label">Base URL</label>
-        <input type="text" id="idx-openai-url" class="form-control" placeholder="https://api.gpt.ge/v1/">
+    <div class="row g-2">
+      <div class="col-md-7">
+        <input type="text" id="idx-openai-key" class="form-control" placeholder="V-API Key: sk-..." autocomplete="off">
       </div>
-      <div class="col-md-3">
-        <label class="form-label">Search Model</label>
-        <select id="idx-openai-model" class="form-select">
-          <option value="gemini-3-flash-preview-search" selected>gemini-3-flash-preview-search</option>
+      <div class="col-md-5" style="display:flex;align-items:center">
+        <select id="idx-openai-model" class="form-select" style="font-size:12.5px">
+          <option value="gemini-3-flash-preview-search">gemini-3-flash-preview-search (default)</option>
           <option value="gemini-3.1-pro-preview-search">gemini-3.1-pro-preview-search</option>
           <option value="gpt-5-search-api">gpt-5-search-api</option>
           <option value="deepseek-r1-search">deepseek-r1-search</option>
           <option value="deepseek-v3-search">deepseek-v3-search</option>
         </select>
       </div>
+    </div>
+  </div>
+
+  <!-- ③ 轻量模型 -->
+  <div class="api-config-section" style="margin-top:24px;background:var(--surface);border-color:var(--border2)">
+    <div class="api-config-header">
+      <span class="api-config-num">③</span>
+      <span class="api-config-title">轻量模型</span>
+      <span class="api-config-desc">— 报告生成 · 引文语境提取（无需 web search，可自由选择服务商）</span>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Base URL</label>
+        <input type="text" id="idx-openai-url" class="form-control" placeholder="https://api.gpt.ge/v1/">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">API Key</label>
+        <input type="text" id="idx-light-api-key" class="form-control" placeholder="留空则复用上方 V-API Key" autocomplete="off">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">模型名称</label>
+        <input type="text" id="idx-dashboard-model" class="form-control"
+               placeholder="gemini-3-flash-preview-nothinking">
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:10px">
+      <span style="font-size:12px;color:var(--light);flex-shrink:0">快捷填充:</span>
+      <div id="provider-presets" style="display:flex;gap:5px;flex-wrap:wrap">
+        <span class="btn-provider-preset active" data-provider="vapi">V-API</span>
+        <span class="btn-provider-preset" data-provider="openai">OpenAI</span>
+        <span class="btn-provider-preset" data-provider="deepseek">DeepSeek</span>
+        <span class="btn-provider-preset" data-provider="openrouter">OpenRouter</span>
+        <span class="btn-provider-preset" data-provider="zhipu">智谱</span>
+        <span class="btn-provider-preset" data-provider="siliconflow">硅基流动</span>
+        <span class="btn-provider-preset" data-provider="ollama">Ollama</span>
+        <span class="btn-provider-preset" data-provider="custom">自定义</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 更多配置折叠 -->
+  <div style="margin-top:10px">
+    <button class="btn-agent-sm" type="button"
+        data-bs-toggle="collapse" data-bs-target="#config-advanced"
+        aria-expanded="false" aria-controls="config-advanced"
+        id="idx-advanced-toggle">
+      <i class="bi bi-sliders"></i> 更多配置
+      <span style="font-size:11px;color:var(--light);margin-left:4px">S2 Key / 输出前缀 / 费用追踪</span>
+    </button>
+  </div>
+  <div class="collapse" id="config-advanced">
+    <div class="row g-3" style="margin-top:4px">
+      <div class="col-md-5">
+        <label class="form-label">Semantic Scholar API Key <span style="color:var(--light);font-weight:400">(可选)</span></label>
+        <input type="text" id="idx-s2-api-key" class="form-control form-control-sm" placeholder="留空使用免费配额" autocomplete="off">
+      </div>
       <div class="col-md-3">
         <label class="form-label">输出文件前缀</label>
         <input type="text" id="idx-output-prefix" class="form-control" value="paper">
       </div>
-      <div class="col-md-5" id="idx-dashboard-model-row">
-        <label class="form-label">画像报告模型 <span style="color:var(--light);font-weight:400">(Phase 5 LLM，无需 web search)</span></label>
-        <input type="text" id="idx-dashboard-model" class="form-control"
-            placeholder="gemini-3-flash-preview-nothinking">
-        <div class="form-text">推荐使用非 search 模型，与上方 Search Model 独立</div>
-      </div>
-      <div class="col-12" style="margin-top:8px">
+      <div class="col-12" style="margin-top:4px">
         <label class="form-label" style="font-size:12.5px">
           <i class="bi bi-coin" style="color:var(--amber)"></i> 费用追踪
           <span style="color:var(--light);font-weight:400;font-size:11px;margin-left:4px">
-            配置后可在运行结束时查看 LLM API 额度消耗。在中转站个人中心获取。
+            配置后可在运行结束时查看 LLM API 额度消耗
           </span>
         </label>
         <div class="row g-2">
-          <div class="col-md-6">
+          <div class="col-md-5">
             <input type="text" id="idx-api-access-token" class="form-control form-control-sm"
               placeholder="系统令牌（个人中心 → 生成令牌）" autocomplete="off">
           </div>
@@ -212,17 +261,39 @@
   </button>
 </div>
 
-<!-- From-Cache Shortcut -->
-<div style="border:1px solid var(--border-color,#e5e7eb);border-radius:8px;padding:12px 14px;margin-bottom:16px;background:var(--surface-secondary,#f9fafb)">
-  <div style="font-size:12px;font-weight:600;color:var(--text-secondary,#6b7280);margin-bottom:8px;letter-spacing:.02em">
-    <i class="bi bi-database-check" style="margin-right:4px"></i>从缓存直接生成报告（跳过 Phase 1–4）
-  </div>
-  <div style="display:flex;gap:8px;align-items:center">
-    <input id="idx-cache-title" type="text" placeholder="输入已缓存的论文标题…"
-      style="flex:1;padding:7px 10px;border:1px solid var(--border-color,#d1d5db);border-radius:6px;font-size:13px;background:var(--surface,#fff);color:var(--text-primary,#111)" />
-    <button id="idx-cache-run-btn" class="btn-agent-secondary" style="white-space:nowrap;padding:7px 14px;font-size:13px">
-      <i class="bi bi-lightning-charge-fill"></i> 生成报告
-    </button>
+
+<!-- Pipeline Architecture Indicator (shown during run) -->
+<div id="idx-pipeline-info" style="display:none" class="agent-card mb-3">
+  <div class="pipeline-phases">
+    <div class="pipeline-phase" id="pp-phase1">
+      <div class="pp-icon"><i class="bi bi-search"></i></div>
+      <div class="pp-label">施引文献检索</div>
+      <div class="pp-source">Google Scholar</div>
+    </div>
+    <div class="pipeline-arrow"><i class="bi bi-chevron-right"></i></div>
+    <div class="pipeline-phase" id="pp-phase2">
+      <div class="pp-icon"><i class="bi bi-database"></i></div>
+      <div class="pp-label">作者信息采集</div>
+      <div class="pp-source">OpenAlex · S2 · arXiv</div>
+    </div>
+    <div class="pipeline-arrow"><i class="bi bi-chevron-right"></i></div>
+    <div class="pipeline-phase" id="pp-phase3">
+      <div class="pp-icon"><i class="bi bi-award"></i></div>
+      <div class="pp-label">学者影响力评估</div>
+      <div class="pp-source">预过滤 + 搜索</div>
+    </div>
+    <div class="pipeline-arrow"><i class="bi bi-chevron-right"></i></div>
+    <div class="pipeline-phase" id="pp-phase4">
+      <div class="pp-icon"><i class="bi bi-file-pdf"></i></div>
+      <div class="pp-label">引文语境提取</div>
+      <div class="pp-source">PDF 下载解析</div>
+    </div>
+    <div class="pipeline-arrow"><i class="bi bi-chevron-right"></i></div>
+    <div class="pipeline-phase" id="pp-phase5">
+      <div class="pp-icon"><i class="bi bi-bar-chart"></i></div>
+      <div class="pp-label">报告生成</div>
+      <div class="pp-source">可视化 Dashboard</div>
+    </div>
   </div>
 </div>
 
@@ -1092,17 +1163,17 @@ function escHtml(s) {
 #cc-ui-send:disabled{opacity:0.4;cursor:default}
 </style>
 
-<button id="cc-ui-fab" onclick="ccuiToggle()" title="CitationClaw 使用助手"><img src="/static/citationclaw_icon.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none"></button>
+<button id="cc-ui-fab" onclick="ccuiToggle()" title="CitationClaw v2 使用助手"><img src="/static/head_logo.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none"></button>
 <div id="cc-ui-win" style="display:none">
   <div id="cc-ui-header">
     <div>
-      <div id="cc-ui-header-title">🦞 CitationClaw 使用助手</div>
+      <div id="cc-ui-header-title">🦞 CitationClaw v2 使用助手</div>
       <div id="cc-ui-header-sub">操作指引 · 常见问题</div>
     </div>
     <button id="cc-ui-close" onclick="ccuiToggle()">✕</button>
   </div>
   <div id="cc-ui-msgs">
-    <div class="cc-ui-bubble ai">你好！我是 CitationClaw 使用助手🦞<br>可以帮你了解如何配置、操作，以及解答常见问题。</div>
+    <div class="cc-ui-bubble ai">你好！我是 CitationClaw v2 使用助手🦞<br>可以帮你了解如何配置、操作，以及解答常见问题。</div>
   </div>
   <div id="cc-ui-chips">
     <span class="cc-ui-chip" onclick="ccuiAsk('如何配置 ScraperAPI？')">如何配置 ScraperAPI？</span>
@@ -1111,7 +1182,7 @@ function escHtml(s) {
     <span class="cc-ui-chip" onclick="ccuiAsk('任务中断如何续爬？')">任务中断续爬？</span>
   </div>
   <div id="cc-ui-input-row">
-    <textarea id="cc-ui-input" rows="2" placeholder="问我如何使用 CitationClaw…（Enter 发送）"></textarea>
+    <textarea id="cc-ui-input" rows="2" placeholder="问我如何使用 CitationClaw v2…（Enter 发送）"></textarea>
     <button id="cc-ui-send" onclick="ccuiSend()">发送</button>
   </div>
 </div>
@@ -1130,7 +1201,7 @@ function escHtml(s) {
     var win = document.getElementById('cc-ui-win');
     var fab = document.getElementById('cc-ui-fab');
     win.style.display = isOpen ? 'flex' : 'none';
-    fab.innerHTML = isOpen ? '✕' : '<img src="/static/citationclaw_icon.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none">';
+    fab.innerHTML = isOpen ? '✕' : '<img src="/static/head_logo.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none">';
     fab.style.fontSize = isOpen ? '18px' : '';
     if (isOpen) { var inp = document.getElementById('cc-ui-input'); if(inp) inp.focus(); }
   };

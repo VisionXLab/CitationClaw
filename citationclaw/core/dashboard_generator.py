@@ -346,13 +346,21 @@ class DashboardGenerator:
             seen_renowned.add(s["name"])
             if s["country"] and _valid_country(s["country"]):
                 country_counter_renowned[s["country"]] += 1
-            lv = s["level"]
-            if lv and "院士" in str(lv) and "其他" not in str(lv) and "Fellow" not in str(lv):
+            lv = str(s["level"] or "")
+            if "重大奖项" in lv:
+                level_counter["重大奖项"] += 1
+            elif lv == "院士" or (lv and "院士" in lv and "其他" not in lv and "Fellow" not in lv):
                 level_counter["两院院士"] += 1
-            elif lv == "Fellow":
-                level_counter["Fellow"] += 1
-            elif lv and "其他院士" in str(lv):
+            elif "其他院士" in lv:
                 level_counter["其他院士"] += 1
+            elif lv == "Fellow" or "fellow" in lv.lower():
+                level_counter["Fellow"] += 1
+            elif "国家级人才" in lv:
+                level_counter["国家级人才"] += 1
+            elif "知名机构" in lv:
+                level_counter["知名机构核心"] += 1
+            elif "大学领导" in lv:
+                level_counter["大学领导层"] += 1
             else:
                 level_counter["其他知名学者"] += 1
 
@@ -817,8 +825,12 @@ body { font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI
 .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px;
   font-weight: 500; white-space: nowrap; }
 .b-ys { background: #fff3e0; color: #d4892a; border: 1px solid #f0c070; }
-.b-fw { background: var(--teal-light); color: var(--teal); border: 1px solid #b3d4f0; }
 .b-ot { background: var(--sage-light); color: #357a62; border: 1px solid #a0d9c0; }
+.b-aw { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+.b-fw { background: var(--teal-light); color: var(--teal); border: 1px solid #b3d4f0; }
+.b-nt { background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; }
+.b-il { background: #e0f2fe; color: #075985; border: 1px solid #7dd3fc; }
+.b-ul { background: #fce7f3; color: #9d174d; border: 1px solid #f9a8d4; }
 .b-nm { background: var(--bg2); color: var(--text-muted); border: 1px solid var(--border); }
 .b-cn { background: #fff0f0; color: var(--rose); border: 1px solid #f0c0c0; }
 .b-int { background: var(--violet-light); color: var(--violet); border: 1px solid #c9b8ec; }
@@ -1048,12 +1060,20 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
     @staticmethod
     def _level_badge(level):
         lv = str(level or "")
-        if "院士" in lv and "其他" not in lv and "Fellow" not in lv:
+        if "重大奖项" in lv:
+            return "b-aw", "重大奖项"
+        if lv == "院士" or ("院士" in lv and "其他" not in lv and "Fellow" not in lv):
             return "b-ys", "两院院士"
-        if lv == "Fellow":
-            return "b-fw", "Fellow"
         if "其他院士" in lv:
             return "b-ot", "其他院士"
+        if lv == "Fellow" or "fellow" in lv.lower():
+            return "b-fw", "Fellow"
+        if "国家级人才" in lv:
+            return "b-nt", "国家级人才"
+        if "知名机构" in lv:
+            return "b-il", "知名机构核心"
+        if "大学领导" in lv:
+            return "b-ul", "大学领导层"
         return "b-nm", "知名学者"
 
     @staticmethod
@@ -1247,14 +1267,35 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
 
         n_scholars = stats["unique_scholars"]
         lc = stats["level_counter"]
-        fellow_labels = self._js([
-            f"其他知名学者 {lc.get('其他知名学者', 0)}人",
-            f"Fellow {lc.get('Fellow', 0)}人",
-            f"其他院士 {lc.get('其他院士', 0)}人",
-            f"两院院士 {lc.get('两院院士', 0)}人",
-        ])
-        fellow_data = self._js([lc.get("其他知名学者", 0), lc.get("Fellow", 0),
-                                 lc.get("其他院士", 0), lc.get("两院院士", 0)])
+        # Build chart data from all non-zero tiers (ordered by importance)
+        _tier_order = ["重大奖项", "两院院士", "其他院士", "Fellow", "国家级人才", "知名机构核心", "大学领导层", "其他知名学者"]
+        # Distinct colors per tier (bg with alpha, border solid)
+        _tier_colors = {
+            "重大奖项":    ("#f59e0b", "rgba(245,158,11,0.6)"),   # amber
+            "两院院士":    ("#ef4444", "rgba(239,68,68,0.6)"),     # red
+            "其他院士":    ("#f97316", "rgba(249,115,22,0.6)"),    # orange
+            "Fellow":     ("#3b82f6", "rgba(59,130,246,0.6)"),    # blue
+            "国家级人才":   ("#8b5cf6", "rgba(139,92,246,0.6)"),    # purple
+            "知名机构核心":  ("#06b6d4", "rgba(6,182,212,0.6)"),     # cyan
+            "大学领导层":   ("#ec4899", "rgba(236,72,153,0.6)"),    # pink
+            "其他知名学者":  ("#94a3b8", "rgba(148,163,184,0.5)"),   # gray
+        }
+        _tier_labels = []
+        _tier_values = []
+        _tier_bg = []
+        _tier_bd = []
+        for t in _tier_order:
+            v = lc.get(t, 0)
+            if v > 0:
+                _tier_labels.append(f"{t} {v}人")
+                _tier_values.append(v)
+                border, bg = _tier_colors.get(t, ("#94a3b8", "rgba(148,163,184,0.5)"))
+                _tier_bg.append(f"'{bg}'")
+                _tier_bd.append(f"'{border}'")
+        fellow_labels = self._js(_tier_labels)
+        fellow_data = self._js(_tier_values)
+        fellow_colors_bg = ",".join(_tier_bg)
+        fellow_colors_border = ",".join(_tier_bd)
         top10 = papers[:10]
         total_cit_all = sum(p["citations"] for p in papers)
         cite_labels = self._js([self._truncate(p["title"], 48) for p in top10])
@@ -1408,8 +1449,8 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
                 if pt and pt not in scholar_groups[group_idx]["_paper_titles"]:
                     scholar_groups[group_idx]["_paper_titles"].append(pt)
 
-        # Sort scholars: 两院院士 → 其他院士 → Fellow → 其他知名学者
-        _level_order_map = {"b-ys": 0, "b-ot": 1, "b-fw": 2, "b-nm": 3}
+        # Sort scholars: 重大奖项 → 两院院士 → 其他院士 → Fellow → 国家级人才 → 知名机构核心 → 大学领导层 → 其他
+        _level_order_map = {"b-aw": 0, "b-ys": 1, "b-ot": 2, "b-fw": 3, "b-nt": 4, "b-il": 5, "b-ul": 6, "b-nm": 7}
         scholar_groups.sort(key=lambda s: _level_order_map.get(self._level_badge(s["level"])[0], 4))
 
         # Build title → link lookup for the interactive scholar tooltip
@@ -1424,7 +1465,7 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
         scholar_rows = ""
         for idx, s in enumerate(scholar_groups, 1):
             bc, bl = self._level_badge(s["level"])
-            is_top = bc in ("b-ys", "b-fw", "b-ot")
+            is_top = bc in ("b-ys", "b-ot", "b-aw", "b-fw", "b-nt")
             # Collect all unique descriptions across all papers this scholar appears in
             all_descs = []
             for pt in s.get("_paper_titles", []):
@@ -2063,7 +2104,7 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
 
 <!-- ═══ HEADER ═══ -->
 <div class="header">
-  <div class="header-eyebrow">CitationClaw</div>
+  <div class="header-eyebrow">CitationClaw v2</div>
   <h1>引用论文<em>多维画像</em>分析报告</h1>
   {header_targets_html}
   <p class="header-subtitle">基于 {total_papers} 篇引用论文与 {stats['unique_scholars']} 位知名学者（含 {stats['fellow_count']} 位院士/Fellow）数据，结合大模型对引用描述的深度解读，全面呈现学术影响力格局</p>
@@ -2314,8 +2355,8 @@ makeCountryChart('cCountryTop', {country_t_labels}, {country_t_data});
 new Chart(document.getElementById('cFellow'), {{
   type: 'doughnut',
   data: {{ labels: {fellow_labels}, datasets: [{{ data: {fellow_data},
-    backgroundColor: ['rgba(160,174,192,0.5)', TEAL+'bb', SAGE+'bb', AMBER+'bb'],
-    borderColor: ['#a0aec0', TEAL, SAGE, AMBER], borderWidth: 2, hoverOffset: 8 }}] }},
+    backgroundColor: [{fellow_colors_bg}],
+    borderColor: [{fellow_colors_border}], borderWidth: 2, hoverOffset: 8 }}] }},
   options: {{ cutout: '62%', responsive: true, maintainAspectRatio: false,
     plugins: {{ legend: {{ position: 'bottom', labels: {{ padding: 10, font: {{ size: 10 }} }} }},
       tooltip: {{ callbacks: {{ label: c=>`${{c.label}}: ${{Math.round(c.raw/{n_scholars or 1}*100)}}%` }} }} }} }}
@@ -2500,19 +2541,19 @@ new Chart(document.getElementById('cTrend'), {{
 #cc-send:disabled{{opacity:0.4;cursor:default}}
 </style>
 
-<button id="cc-fab" title="CitationClaw 智能助手"><img src="/docs-assets/head_logo.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none"></button>
+<button id="cc-fab" title="CitationClaw v2 智能助手"><img src="/static/head_logo.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none"></button>
 <div id="cc-win" style="display:none">
   <div id="cc-header">
     <div>
-      <div id="cc-header-title">🦞 CitationClaw 智能助手</div>
+      <div id="cc-header-title">🦞 CitationClaw v2 智能助手</div>
       <div id="cc-header-sub">基于本报告数据 · AI 驱动</div>
     </div>
     <button id="cc-close">✕</button>
   </div>
   <div id="cc-msgs">
-    <div class="cc-bubble ai">你好！我是 CitationClaw 智能助手🦞，已读取本报告所有数据。<br>你可以问我：引用趋势、知名学者、关键词分析、各类统计数据等任何问题。</div>
+    <div class="cc-bubble ai">你好！我是 CitationClaw v2 智能助手🦞，已读取本报告所有数据。<br>你可以问我：引用趋势、知名学者、关键词分析、各类统计数据等任何问题。</div>
   </div>
-  <div id="cc-offline">⚠️ 离线模式：请通过 CitationClaw 应用打开报告以启用 AI 问答功能。</div>
+  <div id="cc-offline">⚠️ 离线模式：请通过 CitationClaw v2 应用打开报告以启用 AI 问答功能。</div>
   <div id="cc-input-row">
     <textarea id="cc-input" rows="2" placeholder="问我关于这份报告的问题…（Enter 发送，Shift+Enter 换行）"></textarea>
     <button id="cc-send">发送</button>
@@ -2533,7 +2574,7 @@ new Chart(document.getElementById('cTrend'), {{
     var win = document.getElementById('cc-win');
     var fab = document.getElementById('cc-fab');
     win.style.display = isOpen ? 'flex' : 'none';
-    fab.innerHTML = isOpen ? '✕' : '<img src="/docs-assets/head_logo.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none">';
+    fab.innerHTML = isOpen ? '✕' : '<img src="/static/head_logo.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none">';
     fab.style.fontSize = isOpen ? '20px' : '';
     if (isOpen) {{
       var offline = window.location.protocol === 'file:';
@@ -2664,7 +2705,7 @@ new Chart(document.getElementById('cTrend'), {{
     }});
   }};
   }} catch(e) {{
-    console.error('[CitationClaw] Chat widget error:', e);
+    console.error('[CitationClaw v2] Chat widget error:', e);
   }}
 }})();
 </script>

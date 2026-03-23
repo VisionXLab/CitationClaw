@@ -1,0 +1,28 @@
+scholar_search:
+  max_rounds: 3
+  timeout_per_scholar_seconds: 20
+  concurrent_tabs: 5
+
+  steps:
+    - name: "Google Scholar profile"
+      query_template: "{name} site:scholar.google.com"
+      extract: "h-index, citation count, recent papers"
+      priority: 1
+
+    - name: "Google search for honors"
+      query_template: "{name} {affiliation} Fellow OR Academician OR award"
+      extract: "titles, honors, awards, positions"
+      priority: 2
+
+    - name: "Institution official page"
+      query_template: "{name} {affiliation} site:{institution_domain}"
+      extract: "official title, position, bio"
+      priority: 3
+      condition: "only if prior steps insufficient"
+
+  sufficiency_check:
+    prompt: |
+      Based on the information collected so far, do we have enough data
+      to assess this scholar's tier? Answer YES or NO.
+      Collected info: {collected_info}
+    stop_on: "YES"

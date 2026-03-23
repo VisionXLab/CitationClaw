@@ -3,8 +3,11 @@ from __future__ import annotations
 from citationclaw.skills.base import Skill
 from citationclaw.skills.phase1_citation_fetch import CitationFetchSkill
 from citationclaw.skills.phase2_author_intel import AuthorIntelSkill
+from citationclaw.skills.phase2_metadata import MetadataCollectionSkill
 from citationclaw.skills.phase3_export import ExportSkill
+from citationclaw.skills.phase3_scholar_assess import ScholarAssessSkill
 from citationclaw.skills.phase4_citation_desc import CitationDescriptionSkill
+from citationclaw.skills.phase4_citation_extract import CitationExtractSkill
 from citationclaw.skills.phase5_report import ReportGenerateSkill
 
 
@@ -29,9 +32,17 @@ class SkillRegistry:
 
 def build_default_registry() -> SkillRegistry:
     reg = SkillRegistry()
+    # Phase 1: 施引文献检索 (unchanged)
     reg.register(CitationFetchSkill())
+    # Phase 2: 作者信息采集 (old: LLM search, new: structured APIs)
     reg.register(AuthorIntelSkill())
+    reg.register(MetadataCollectionSkill())
+    # Phase 3: 学者影响力评估 + 导出
     reg.register(ExportSkill())
+    reg.register(ScholarAssessSkill())
+    # Phase 4: 引文语境提取 (old: LLM search, new: PDF parse)
     reg.register(CitationDescriptionSkill())
+    reg.register(CitationExtractSkill())
+    # Phase 5: 报告生成与导出
     reg.register(ReportGenerateSkill())
     return reg

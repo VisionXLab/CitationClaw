@@ -10,6 +10,18 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
+import httpx
+
+
+def _make_openai_client(api_key: str, base_url: str, timeout: float = 60.0):
+    """Create an OpenAI client that bypasses system proxy settings."""
+    from openai import OpenAI
+    return OpenAI(
+        api_key=api_key,
+        base_url=base_url,
+        timeout=timeout,
+        http_client=httpx.Client(trust_env=False, timeout=timeout),
+    )
 
 from citationclaw.app.config_manager import ConfigManager, AppConfig, DATA_DIR
 from citationclaw.app.task_executor import TaskExecutor
@@ -28,7 +40,7 @@ async def lifespan(app):
 
 
 # FastAPI应用
-app = FastAPI(title="CitationClaw", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="CitationClaw v2", version="2.0.0", lifespan=lifespan)
 
 # 静态文件和模板（使用包内路径，兼容 pip install 和本地开发）
 _PKG_DIR = Path(__file__).parent.parent
@@ -127,6 +139,22 @@ class ConfigUpdate(BaseModel):
 async def get_presets():
     from citationclaw.app.config_manager import SERVICE_TIER_PRESETS
     return SERVICE_TIER_PRESETS
+
+
+@app.get("/api/providers")
+async def get_providers():
+    """Return LLM provider presets for the setup wizard."""
+    from citationclaw.config.provider_manager import ProviderManager
+    pm = ProviderManager()
+    presets = {}
+    for name in pm.list_presets():
+        info = pm.get_preset(name)
+        presets[name] = {
+            "name": info.get("name", name),
+            "base_url": info.get("base_url", ""),
+            "default_model": info.get("default_model", ""),
+        }
+    return {"presets": presets}
 
 
 @app.post("/api/config")
@@ -346,7 +374,7 @@ async def fetch_scholar_papers(request: ScholarProfileRequest):
         retry_intervals=config.retry_intervals,
     )
     try:
-        papers = await asyncio.to_thread(scraper.fetch_all_papers, url)
+        papers = await scraper.fetch_all_papers(url)
         return {"papers": papers, "total": len(papers)}
     except ValueError as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
@@ -376,7 +404,7 @@ def _build_report_system_prompt(ctx: dict) -> str:
         return "\n".join(f"  - {fn(x)}" for x in items[:limit]) or "  （无数据）"
 
     parts = [
-        "你是 CitationClaw 智能分析助手，专门针对以下这份论文被引画像报告回答问题。",
+        "你是 CitationClaw v2 智能分析助手，专门针对以下这份论文被引画像报告回答问题。",
         "请基于报告数据作答，语言简洁专业，必要时引用具体数字。",
         "若问题超出报告数据范围，请如实说明。",
         "",
@@ -418,9 +446,9 @@ def _build_report_system_prompt(ctx: dict) -> str:
     return "\n".join(parts)
 
 
-_UI_SYSTEM_PROMPT = """你是 CitationClaw 使用助手，帮助用户操作 CitationClaw 学术引用分析工具。
+_UI_SYSTEM_PROMPT = """你是 CitationClaw v2 使用助手，帮助用户操作 CitationClaw v2 学术引用分析工具。
 
-## CitationClaw 核心功能
+## CitationClaw v2 核心功能
 - 输入论文题目（或 Google Scholar 主页 URL）→ 自动爬取所有施引文献
 - 识别院士/Fellow 等知名学者，生成可视化 HTML 画像报告
 - 支持多篇论文批量分析、断点续爬、年份遍历模式（突破1000篇限制）
@@ -441,7 +469,7 @@ _UI_SYSTEM_PROMPT = """你是 CitationClaw 使用助手，帮助用户操作 Cit
 https://visionxlab.github.io/CitationClaw/guidelines.html
 该文档包含完整的安装步骤、API 申请与填写说明、各参数含义及截图示例，是解决配置问题的最佳参考。
 
-请简洁、准确地回答用户关于使用 CitationClaw 的问题，不要涉及报告数据内容。"""
+请简洁、准确地回答用户关于使用 CitationClaw v2 的问题，不要涉及报告数据内容。"""
 
 
 class ChatUIRequest(BaseModel):
@@ -461,9 +489,8 @@ async def chat_ui(request: ChatUIRequest):
 
     def _stream():
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=config.openai_api_key,
-                            base_url=config.openai_base_url, timeout=60.0)
+            client = _make_openai_client(config.openai_api_key,
+                                         config.openai_base_url, timeout=60.0)
             stream = client.chat.completions.create(
                 model=config.dashboard_model,
                 messages=messages_to_send,
@@ -494,9 +521,8 @@ async def chat_report(request: ChatReportRequest):
 
     def _stream():
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=config.openai_api_key,
-                            base_url=config.openai_base_url, timeout=90.0)
+            client = _make_openai_client(config.openai_api_key,
+                                         config.openai_base_url, timeout=90.0)
 
             needs_search = False
             if search_model and search_model != light_model:
@@ -587,13 +613,7 @@ class APITestRequest(BaseModel):
 @app.post("/api/test_openai")
 async def test_openai_api(request: APITestRequest):
     try:
-        from openai import OpenAI
-
-        client = OpenAI(
-            api_key=request.api_key,
-            base_url=request.base_url,
-            timeout=60.0
-        )
+        client = _make_openai_client(request.api_key, request.base_url, timeout=60.0)
 
         try:
             response_no_web = client.chat.completions.create(

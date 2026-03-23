@@ -1,0 +1,12 @@
+[
+  {"name": "Andrew Ng", "affiliation": "Stanford University", "expected_tier": "Industry Leader",
+   "expected_honors": ["Stanford Professor", "Google Brain co-founder"]},
+  {"name": "Yann LeCun", "affiliation": "New York University", "expected_tier": "Academician",
+   "expected_honors": ["Turing Award", "ACM Fellow"]},
+  {"name": "Fei-Fei Li", "affiliation": "Stanford University", "expected_tier": "Academician",
+   "expected_honors": ["NAE Member", "ACM Fellow"]},
+  {"name": "Geoffrey Hinton", "affiliation": "University of Toronto", "expected_tier": "Academician",
+   "expected_honors": ["Turing Award", "FRS"]},
+  {"name": "张钹", "affiliation": "清华大学", "expected_tier": "Academician",
+   "expected_honors": ["中国科学院院士"]}
+]

@@ -1,0 +1,75 @@
+tiers:
+  - name: "Academician"
+    priority: 1
+    criteria:
+      domestic:
+        - 中国科学院院士
+        - 中国工程院院士
+      international:
+        - National Academy of Engineering (NAE) Member
+        - National Academy of Sciences (NAS) Member
+        - Fellow of the Royal Society (FRS)
+        - European Academy of Sciences Member
+        - Other national academy members
+
+  - name: "Fellow"
+    priority: 2
+    criteria:
+      - IEEE Fellow
+      - ACM Fellow
+      - ACL Fellow
+      - AAAI Fellow
+      - APS Fellow
+      - ACS Fellow
+      - RSC Fellow
+      - Any major international academic society Fellow
+
+  - name: "Major Award Winner"
+    priority: 3
+    criteria:
+      - Turing Award
+      - Nobel Prize
+      - Fields Medal
+      - CVPR/ICCV/NeurIPS/ICML Best Paper Award
+      - ACL/EMNLP Best Paper Award
+      - National Science Foundation awards (NSF CAREER, etc.)
+
+  - name: "National Talent (China)"
+    priority: 4
+    criteria:
+      - 杰青 (Distinguished Young Scholar)
+      - 长江学者 (Changjiang Scholar)
+      - 优青 (Excellent Young Scholar)
+      - 万人计划 (Ten Thousand Talents)
+
+  - name: "Industry Leader"
+    priority: 5
+    criteria:
+      institutions:
+        - Google
+        - DeepMind
+        - OpenAI
+        - Meta AI
+        - Microsoft Research
+        - Apple ML
+        - Amazon Science
+        - NVIDIA Research
+      positions:
+        - Chief Scientist
+        - VP of Research
+        - Lab Director
+        - Distinguished Scientist
+        - Principal Researcher
+
+  - name: "University Leadership"
+    priority: 6
+    criteria:
+      positions:
+        - President
+        - Dean
+        - Department Chair
+      condition: "Top 100 university (QS/THE ranking)"
+
+pre_filter:
+  h_index_threshold: 20
+  citation_threshold: 3000

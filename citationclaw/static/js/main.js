@@ -588,14 +588,52 @@ function initIndexPage() {
         });
     }
 
+    // ── Provider Preset Selector ──
+    let _providerPresets = {};
+    (async () => {
+        try {
+            const resp = await safeFetch('/api/providers');
+            const data = await resp.json();
+            _providerPresets = data.presets || {};
+        } catch (e) {
+            console.warn('加载 Provider 预设失败:', e);
+        }
+    })();
+
+    // Provider preset buttons fill section ③ (lightweight model: URL + model name)
+    document.querySelectorAll('.btn-provider-preset').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            // Toggle active state
+            document.querySelectorAll('.btn-provider-preset').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+
+            const provider = this.dataset.provider;
+            const preset = _providerPresets[provider];
+            if (!preset) return;
+
+            // Fill section ③ fields (NOT the search model select)
+            const urlEl = document.getElementById('idx-openai-url');
+            const lightModelEl = document.getElementById('idx-dashboard-model');
+
+            if (urlEl && preset.base_url) {
+                urlEl.value = preset.base_url;
+            }
+            if (lightModelEl && preset.default_model) {
+                lightModelEl.value = preset.default_model;
+            }
+        });
+    });
+
     // Phase label 映射
     const phaseLabels = {
         'URL': 'Phase 0 · 查找引用链接',
-        'Phase 1': 'Phase 1 · 爬取引用列表',
-        'Phase 2': 'Phase 2 · 搜索学者信息',
-        'Phase 3': 'Phase 3 · 导出结果',
-        'Phase 4': 'Phase 4 · 搜索引用描述',
-        'Phase 5': 'Phase 5 · 生成分析报告',
+        'Phase 1': 'Phase 1 · 施引文献检索',
+        'Phase 2': 'Phase 2 · 作者信息采集',
+        'Phase 3': 'Phase 3 · 学者影响力评估',
+        'Phase 4': 'Phase 4 · 引文语境提取',
+        'Phase 5': 'Phase 5 · 报告生成与导出',
     };
     let currentPhase = '处理中...';
 
@@ -611,7 +649,12 @@ function initIndexPage() {
                 _syncApiKeyType(el('idx-openai-key'));
             }
             if (el('idx-openai-url')) el('idx-openai-url').value = cfg.openai_base_url || '';
-            if (el('idx-openai-model')) el('idx-openai-model').value = cfg.openai_model || '';
+            if (el('idx-openai-model')) {
+                const searchSelect = el('idx-openai-model');
+                searchSelect.value = cfg.openai_model || '';
+                // If saved model doesn't match any search option, use default
+                if (!searchSelect.value) searchSelect.value = 'gemini-3-flash-preview-search';
+            }
             if (el('idx-output-prefix')) el('idx-output-prefix').value = cfg.default_output_prefix || 'paper';
             if (el('idx-renowned-scholar')) el('idx-renowned-scholar').checked = cfg.enable_renowned_scholar_filter !== false;
             if (el('idx-author-verify')) el('idx-author-verify').checked = cfg.enable_author_verification || false;
@@ -725,10 +768,10 @@ function initIndexPage() {
                 appendIndexLog({
                     timestamp: new Date().toISOString(),
                     level: 'WARNING',
-                    message: '超过 30 秒未收到新消息，任务可能已结束或遇到问题。请检查服务端状态或尝试取消重试。'
+                    message: '超过 3 分钟未收到新消息，任务可能已结束或遇到问题。请检查服务端状态或尝试取消重试。'
                 });
             }
-        }, 30000);
+        }, 180000);
     }
 
     // WebSocket 事件监听
@@ -749,6 +792,11 @@ function initIndexPage() {
         if (_stuckTimer) clearTimeout(_stuckTimer);
         stopRunTimer();
         showIndexResults(data);
+        // Mark all pipeline phases as done
+        document.querySelectorAll('.pipeline-phase').forEach(el => {
+            el.classList.remove('active');
+            el.classList.add('done');
+        });
         // Hide global progress after 3 seconds
         setTimeout(() => { GlobalProgress.hide(); }, 3000);
     });
@@ -864,6 +912,11 @@ function initIndexPage() {
         if (logSection) logSection.style.display = 'block';
         var resultsSection = document.getElementById('idx-results-section');
         if (resultsSection) resultsSection.style.display = 'none';
+        // Show and reset pipeline indicator
+        document.getElementById('idx-pipeline-info').style.display = '';
+        document.querySelectorAll('.pipeline-phase').forEach(el => {
+            el.classList.remove('active', 'done');
+        });
         startRunTimer();
         resetStuckTimer();
 
@@ -1017,19 +1070,46 @@ function initIndexPage() {
         }
     }
 
+    // Pipeline indicator - highlight current phase
+    function updatePipelineIndicator(phaseKey) {
+        const pipeEl = document.getElementById('idx-pipeline-info');
+        if (pipeEl) pipeEl.style.display = '';
+        const phases = ['phase1','phase2','phase3','phase4','phase5'];
+        const map = {
+            'Phase 1': 'phase1', 'Phase 2': 'phase2',
+            'Phase 3': 'phase3', 'Phase 4': 'phase4', 'Phase 5': 'phase5',
+        };
+        const current = map[phaseKey];
+        if (!current) return;
+        const idx = phases.indexOf(current);
+        phases.forEach((p, i) => {
+            const el = document.getElementById('pp-' + p);
+            if (!el) return;
+            el.classList.remove('active', 'done');
+            if (i < idx) el.classList.add('done');
+            else if (i === idx) el.classList.add('active');
+        });
+    }
+
     // 检测当前 phase
     function detectPhase(msg) {
         if (!msg) return;
+        let detectedKey = null;
         if (msg.includes('Phase 5') || msg.includes('画像报告')) {
             currentPhase = phaseLabels['Phase 5'];
+            detectedKey = 'Phase 5';
         } else if (msg.includes('Phase 4') || msg.includes('引用描述')) {
             currentPhase = phaseLabels['Phase 4'];
+            detectedKey = 'Phase 4';
         } else if (msg.includes('Phase 3') || msg.includes('导出结果')) {
             currentPhase = phaseLabels['Phase 3'];
+            detectedKey = 'Phase 3';
         } else if (msg.includes('Phase 2') || msg.includes('作者信息') || msg.includes('作者学术')) {
             currentPhase = phaseLabels['Phase 2'];
+            detectedKey = 'Phase 2';
         } else if (msg.includes('Phase 1') || msg.includes('爬取引用') || msg.includes('抓取')) {
             currentPhase = phaseLabels['Phase 1'];
+            detectedKey = 'Phase 1';
         } else if (msg.includes('URL') || msg.includes('引用链接') || msg.includes('citation_url')) {
             currentPhase = phaseLabels['URL'];
         }
@@ -1037,6 +1117,8 @@ function initIndexPage() {
         if (lbl) lbl.textContent = currentPhase;
         // Also update global progress label
         GlobalProgress.setLabel(currentPhase);
+        // Update pipeline indicator
+        if (detectedKey) updatePipelineIndicator(detectedKey);
     }
 
     const MAX_LOG_ENTRIES = 500;

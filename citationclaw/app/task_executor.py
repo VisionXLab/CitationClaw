@@ -1,9 +1,16 @@
 import asyncio
+import json as _json
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from datetime import datetime
 from citationclaw.core.author_cache import AuthorInfoCache
 from citationclaw.core.citing_description_cache import CitingDescriptionCache
+from citationclaw.core.pipeline_adapter import PipelineAdapter
+from citationclaw.core.metadata_collector import MetadataCollector
+from citationclaw.core.metadata_cache import MetadataCache
+from citationclaw.core.self_citation import SelfCitationDetector
+from citationclaw.core.scholar_prefilter import ScholarPreFilter
+from citationclaw.core.scholar_search_agent import ScholarSearchAgent
 from citationclaw.app.log_manager import LogManager
 from citationclaw.app.config_manager import AppConfig, ConfigManager, DATA_DIR
 from citationclaw.app.cost_tracker import CostTracker
@@ -59,6 +66,425 @@ class TaskExecutor:
                     self.log_manager.warning(f"Skill {skill_name} reported {key}={p} but file does not exist")
         return result
 
+    async def _run_new_phase2_and_3(
+        self,
+        citing_files: List[Tuple[Path, str]],
+        result_dir: Path,
+        output_prefix: str,
+        config: AppConfig,
+        canonical_titles: List[str] = None,
+    ) -> Optional[Tuple[Path, Path, Path]]:
+        """New Phase 2 (structured API metadata) + Phase 3 (scholar assess) pipeline.
+
+        Returns: (merged_jsonl, excel_file, json_file) or None on failure.
+        """
+        adapter = PipelineAdapter()
+        metadata_cache = MetadataCache()
+        collector = MetadataCollector(
+            s2_api_key=getattr(config, 's2_api_key', None),
+        )
+        self_cite_detector = SelfCitationDetector()
+        prefilter = ScholarPreFilter()
+
+        # ── Phase 2a: 查询目标论文作者（用于自引检测）──
+        target_authors_map: dict = {}  # canonical → [{name, affiliation}]
+        for ct in (canonical_titles or []):
+            self.log_manager.info(f"[自引检测] 查询目标论文作者: {ct[:50]}...")
+            try:
+                target_meta = await collector.collect(ct)
+                if target_meta:
+                    target_authors_map[ct] = target_meta.get("authors", [])
+                    names = [a.get("name", "") for a in target_authors_map[ct]]
+                    self.log_manager.info(f"  → 找到 {len(names)} 位作者: {', '.join(names[:5])}")
+                else:
+                    target_authors_map[ct] = []
+            except Exception:
+                target_authors_map[ct] = []
+
+        # ── Phase 2b: 作者信息采集 (structured APIs) ──
+        self.log_manager.info("=" * 50)
+        self.log_manager.info("Phase 2 · 作者信息采集: 通过 OpenAlex / S2 / arXiv 查询结构化数据")
+        self.log_manager.info("=" * 50)
+
+        # Flatten all Phase 1 files into papers
+        all_papers: List[Tuple[dict, str]] = []  # (paper_dict, canonical_title)
+        for citing_file, canonical in citing_files:
+            if not citing_file.exists():
+                continue
+            flat = adapter.flatten_phase1_file(citing_file)
+            for p in flat:
+                all_papers.append((p, canonical))
+
+        total = len(all_papers)
+        if total == 0:
+            self.log_manager.warning("Phase 1 未找到任何施引论文")
+            return None
+        self.log_manager.info(f"共 {total} 篇施引论文待查询")
+
+        # Query metadata for each paper (parallel, 10 workers)
+        all_author_dicts: List[dict] = []
+        s2_author_ids: dict = {}
+        oa_author_ids: dict = {}
+        api_hits = 0
+        api_queries = 0
+
+        # Dedup first
+        seen_dedup: set = set()
+        deduped_papers: List[Tuple[int, dict, str]] = []  # (original_index, paper, canonical)
+        for i, (paper, canonical) in enumerate(all_papers):
+            title = paper["paper_title"]
+            link = paper["paper_link"]
+            dedup_key = f"{link or title.lower()}::{canonical}"
+            if dedup_key in seen_dedup:
+                continue
+            seen_dedup.add(dedup_key)
+            deduped_papers.append((i, paper, canonical))
+
+        total = len(deduped_papers)
+        self.log_manager.info(f"去重后 {total} 篇，开始并行查询 (10 workers)...")
+
+        # Parallel fetch with semaphore
+        sem = asyncio.Semaphore(10)
+        results_slots: List[Optional[dict]] = [None] * total  # ordered results
+
+        async def _fetch_one(idx: int, paper: dict, canonical: str):
+            nonlocal api_hits, api_queries
+            async with sem:
+                if self.should_cancel:
+                    return
+                title = paper["paper_title"]
+                cached = await metadata_cache.get(title=title)
+                if cached:
+                    metadata = cached
+                    api_hits += 1
+                else:
+                    metadata = await collector.collect(title)
+                    if metadata:
+                        await metadata_cache.update(metadata.get("doi", ""), title, metadata)
+                    api_queries += 1
+                results_slots[idx] = metadata
+
+        try:
+            tasks = [
+                _fetch_one(idx, paper, canonical)
+                for idx, (_, paper, canonical) in enumerate(deduped_papers)
+            ]
+            await asyncio.gather(*tasks)
+        finally:
+            await metadata_cache.flush()
+
+        # Build records_data in order and log sequentially
+        records_data: List[Tuple[dict, Optional[dict], str]] = []
+        for idx, (orig_i, paper, canonical) in enumerate(deduped_papers):
+            metadata = results_slots[idx]
+            src_tag = ",".join((metadata or {}).get("sources", [])) or "Scholar"
+            if metadata and any(k in src_tag for k in ["openalex", "s2", "arxiv"]):
+                pass  # API result
+            elif metadata:
+                src_tag = "缓存" if api_hits > 0 else src_tag
+            n_authors = len((metadata or {}).get("authors", []))
+            self.log_manager.info(
+                f"  [{idx+1}/{total}] [{src_tag}] {paper['paper_title'][:55]}... ({n_authors} 位作者)"
+            )
+
+            # Collect authors + IDs for Phase 3 enrichment
+            for a in (metadata or {}).get("authors", []):
+                all_author_dicts.append(a)
+                name_lower = a.get("name", "").lower()
+                s2_id = a.get("s2_id", "")
+                oa_id = a.get("openalex_id", "")
+                if s2_id:
+                    s2_author_ids[name_lower] = s2_id
+                if oa_id:
+                    oa_author_ids[name_lower] = oa_id
+
+            records_data.append((paper, metadata, canonical))
+            self.log_manager.update_progress(idx + 1, total)
+
+        self.log_manager.success(
+            f"Phase 2 完成: 缓存命中 {api_hits} / 新查询 {api_queries} / "
+            f"共 {len(records_data)} 篇"
+        )
+
+        # ── Phase 2c: 查询作者 h-index (S2 author API) ──
+        # Deduplicate authors for enrichment
+        seen_authors: dict = {}
+        for a in all_author_dicts:
+            name = a.get("name", "").strip()
+            if name and name.lower() not in seen_authors:
+                seen_authors[name.lower()] = a
+        unique_authors = list(seen_authors.values())
+
+        # Batch lookup author details via OpenAlex Author API (parallel)
+        # Gets h-index AND fills in missing affiliation/country/citation_count
+        author_details: dict = {}  # name_lower → {h_index, affiliation, country, citation_count}
+        oa_lookups = [(name, oid) for name, oid in oa_author_ids.items() if oid]
+
+        if oa_lookups:
+            self.log_manager.info(f"[作者详情] 并行查询 {len(oa_lookups)} 位作者 (OpenAlex Author API)...")
+            detail_sem = asyncio.Semaphore(10)
+
+            async def _fetch_author_detail(name_lower: str, oid: str):
+                async with detail_sem:
+                    try:
+                        data = await collector.openalex.get_author(oid)
+                        if data:
+                            author_details[name_lower] = {
+                                "h_index": data.get("h_index", 0),
+                                "affiliation": data.get("affiliation", ""),
+                                "citation_count": data.get("citation_count", 0),
+                            }
+                    except Exception:
+                        pass
+
+            await asyncio.gather(*[_fetch_author_detail(n, o) for n, o in oa_lookups])
+
+            enriched_h = 0
+            enriched_affil = 0
+            # Enrich all author dicts: h-index, affiliation, citation_count
+            for a in all_author_dicts:
+                name_lower = a.get("name", "").strip().lower()
+                detail = author_details.get(name_lower)
+                if not detail:
+                    continue
+                if detail.get("h_index") and not a.get("h_index"):
+                    a["h_index"] = detail["h_index"]
+                    enriched_h += 1
+                if detail.get("affiliation") and not a.get("affiliation"):
+                    a["affiliation"] = detail["affiliation"]
+                    enriched_affil += 1
+                if detail.get("citation_count") and not a.get("citation_count"):
+                    a["citation_count"] = detail["citation_count"]
+
+            # Also enrich in records_data (for adapter output)
+            for _, metadata, _ in records_data:
+                if not metadata:
+                    continue
+                for a in metadata.get("authors", []):
+                    name_lower = a.get("name", "").strip().lower()
+                    detail = author_details.get(name_lower)
+                    if not detail:
+                        continue
+                    if detail.get("h_index") and not a.get("h_index"):
+                        a["h_index"] = detail["h_index"]
+                    if detail.get("affiliation") and not a.get("affiliation"):
+                        a["affiliation"] = detail["affiliation"]
+                    if detail.get("citation_count") and not a.get("citation_count"):
+                        a["citation_count"] = detail["citation_count"]
+
+            # Enrich unique_authors for prefilter
+            for a in unique_authors:
+                name_lower = a.get("name", "").strip().lower()
+                detail = author_details.get(name_lower)
+                if detail and detail.get("h_index") and not a.get("h_index"):
+                    a["h_index"] = detail["h_index"]
+                if detail and detail.get("affiliation") and not a.get("affiliation"):
+                    a["affiliation"] = detail["affiliation"]
+
+            self.log_manager.info(
+                f"  → h-index: {enriched_h} 位补充 / 机构: {enriched_affil} 位补充 / "
+                f"共 {len(author_details)} 位查到详情"
+            )
+
+        # S2 Author API fallback for authors still missing affiliation
+        s2_fallback = []
+        for a in all_author_dicts:
+            if not a.get("affiliation") and a.get("s2_id"):
+                name_lower = a.get("name", "").strip().lower()
+                if name_lower not in author_details:  # Not already enriched
+                    s2_fallback.append((name_lower, a.get("s2_id"), a))
+
+        if s2_fallback:
+            self.log_manager.info(f"[S2补充] 查询 {len(s2_fallback)} 位仍缺机构的作者 (Semantic Scholar)...")
+            s2_sem = asyncio.Semaphore(5)  # S2 rate limit lower
+            s2_enriched = 0
+
+            async def _fetch_s2_author(name_lower: str, s2_id: str, author_dict: dict):
+                nonlocal s2_enriched
+                async with s2_sem:
+                    try:
+                        data = await collector.s2.get_author(s2_id)
+                        if data:
+                            if data.get("affiliation") and not author_dict.get("affiliation"):
+                                author_dict["affiliation"] = data["affiliation"]
+                                s2_enriched += 1
+                            if data.get("h_index") and not author_dict.get("h_index"):
+                                author_dict["h_index"] = data["h_index"]
+                            if data.get("citation_count") and not author_dict.get("citation_count"):
+                                author_dict["citation_count"] = data["citation_count"]
+                    except Exception:
+                        pass
+
+            await asyncio.gather(*[_fetch_s2_author(n, s, a) for n, s, a in s2_fallback])
+            if s2_enriched:
+                self.log_manager.info(f"  → S2 补充了 {s2_enriched} 位作者的机构信息")
+
+        await collector.close()
+
+        # ── Self-citation detection (before Phase 3, affects all downstream) ──
+        self.log_manager.info("[自引检测] 标记自引论文...")
+        self_cite_map: dict = {}  # index → bool
+        non_self_cite_records = []
+        self_cite_count = 0
+        for i, (paper, metadata, canonical) in enumerate(records_data):
+            target_authors = target_authors_map.get(canonical, [])
+            paper_authors = (metadata or {}).get("authors", [])
+            result = self_cite_detector.check(target_authors, paper_authors)
+            is_self = result.get("is_self_citation", False)
+            self_cite_map[i] = is_self
+            if is_self:
+                self_cite_count += 1
+            else:
+                non_self_cite_records.append((paper, metadata, canonical))
+
+        self.log_manager.info(
+            f"[自引检测] {self_cite_count} 篇自引 / {len(records_data)} 篇总计"
+            f"（自引论文将跳过学者搜索和引文语境提取）"
+        )
+
+        # ── Phase 3: 学者影响力评估（仅非自引论文）──
+        self.log_manager.info("=" * 50)
+        self.log_manager.info("Phase 3 · 学者影响力评估: 预过滤 + 搜索候选学者")
+        self.log_manager.info("=" * 50)
+
+        # Collect authors from NON-self-cite papers only
+        non_self_authors: dict = {}
+        for paper, metadata, canonical in non_self_cite_records:
+            for a in (metadata or {}).get("authors", []):
+                name = a.get("name", "").strip()
+                if name and name.lower() not in non_self_authors:
+                    non_self_authors[name.lower()] = a
+        unique_non_self_authors = list(non_self_authors.values())
+
+        # Pre-filter with enriched h-index data
+        candidates, non_candidates = prefilter.filter_candidates(unique_non_self_authors)
+        self.log_manager.info(
+            f"[预过滤] {len(unique_non_self_authors)} 位作者（非自引）→ "
+            f"{len(candidates)} 位候选, {len(non_candidates)} 位普通学者"
+        )
+
+        # Search candidates per-paper using search LLM (skip self-cite papers)
+        scholar_results: dict = {}  # name → {tier, honors, ...}
+        search_agent = ScholarSearchAgent(
+            api_key=config.openai_api_key,
+            base_url=config.openai_base_url,
+            model=config.openai_model,
+            log_callback=self.log_manager.info,
+        )
+
+        candidate_names = {c.get("name", "").strip().lower() for c in candidates}
+        papers_with_candidates = []
+        for paper, metadata, canonical in non_self_cite_records:
+            if not metadata:
+                continue
+            paper_authors = metadata.get("authors", [])
+            if any(a.get("name", "").strip().lower() in candidate_names for a in paper_authors):
+                papers_with_candidates.append((paper, metadata, canonical))
+
+        n_search = len(papers_with_candidates)
+        self.log_manager.info(f"[搜索LLM] {n_search} 篇非自引论文含候选学者，并行搜索 (10 workers)...")
+
+        # Parallel search LLM calls
+        search_sem = asyncio.Semaphore(10)
+
+        async def _search_one(idx: int, paper: dict, metadata: dict):
+            async with search_sem:
+                if self.should_cancel:
+                    return []
+                try:
+                    return await search_agent.search_paper_authors(
+                        paper_title=paper.get("paper_title", ""),
+                        authors=metadata.get("authors", []),
+                    )
+                except Exception:
+                    return []
+
+        try:
+            tasks = [
+                _search_one(idx, paper, metadata)
+                for idx, (paper, metadata, canonical) in enumerate(papers_with_candidates)
+            ]
+            search_results_list = await asyncio.gather(*tasks)
+        finally:
+            await search_agent.close()
+
+        # Build per-paper scholar map (keyed by paper_title, not scholar name)
+        paper_scholar_map: dict = {}  # paper_title_lower → list of scholar dicts
+        global_seen_keys: set = set()  # All name variant keys seen across all papers
+        global_unique_count = 0
+
+        for idx, (paper, metadata, canonical) in enumerate(papers_with_candidates):
+            title = paper.get("paper_title", "")
+            raw = search_results_list[idx]
+            if not raw:
+                self.log_manager.info(f"  [{idx+1}/{n_search}] {title[:50]}... → 无知名学者")
+                continue
+            found = []
+            for r in raw:
+                if r.name and r.tier:
+                    scholar_dict = {
+                        "name": r.name,
+                        "tier": r.tier,
+                        "honors": [r.honors] if r.honors else [],
+                        "affiliation": r.affiliation,
+                        "country": r.country,
+                        "position": r.position,
+                    }
+                    found.append(scholar_dict)
+                    # Global dedup tracking
+                    name_keys = ScholarSearchAgent._extract_name_keys(r.name)
+                    if not (name_keys & global_seen_keys):
+                        global_unique_count += 1
+                    global_seen_keys.update(name_keys)
+            if found:
+                paper_scholar_map[title.lower().strip()] = found
+                labels = "; ".join(f"{s['tier']}: {s['name']}" for s in found)
+                self.log_manager.info(f"  [{idx+1}/{n_search}] {title[:50]}... → {labels}")
+            else:
+                self.log_manager.info(f"  [{idx+1}/{n_search}] {title[:50]}... → 无知名学者")
+
+        self.log_manager.success(
+            f"Phase 3 完成: {global_unique_count} 位知名学者（去重）/ {n_search} 篇论文"
+        )
+
+        # ── Build merged JSONL with scholar data ──
+        merged_file = result_dir / "merged_authors.jsonl"
+        record_idx = 0
+        with open(merged_file, "w", encoding="utf-8") as f:
+            for i, (paper, metadata, canonical) in enumerate(records_data):
+                is_self = self_cite_map.get(i, False)
+
+                # Look up scholars by paper title (not by author name matching)
+                paper_title_key = paper.get("paper_title", "").lower().strip()
+                paper_scholars = [] if is_self else paper_scholar_map.get(paper_title_key, [])
+
+                self_cite_result = {"is_self_citation": is_self, "method": "pre-checked"}
+
+                record_idx += 1
+                record = adapter.to_legacy_record(
+                    paper=paper,
+                    metadata=metadata,
+                    self_citation=self_cite_result,
+                    renowned_scholars=paper_scholars,
+                    citing_paper=canonical,
+                    record_index=record_idx,
+                )
+                f.write(_json.dumps(record, ensure_ascii=False) + "\n")
+
+        # ── Export ──
+        self.log_manager.info("Phase 3 · 导出结果")
+        excel_file = result_dir / f"{output_prefix}_results.xlsx"
+        json_file = result_dir / f"{output_prefix}_results.json"
+        await self._run_skill(
+            "phase3_export",
+            config,
+            input_file=merged_file,
+            excel_output=excel_file,
+            json_output=json_file,
+        )
+
+        return merged_file, excel_file, json_file
+
     async def execute_full_pipeline(
         self,
         url: str,
@@ -97,7 +523,7 @@ class TaskExecutor:
 
             # ==================== 阶段1: 抓取引用列表 ====================
             self.log_manager.info("=" * 50)
-            self.log_manager.info("阶段1: 开始抓取Google Scholar引用列表")
+            self.log_manager.info("Phase 1 · 施引文献检索: 开始抓取引用列表")
             self.log_manager.info("=" * 50)
 
             citing_papers_file = result_dir / f"{file_prefix}_citing_papers.jsonl"
@@ -116,11 +542,11 @@ class TaskExecutor:
                 self.log_manager.warning("任务已被用户取消")
                 return
 
-            self.log_manager.success("阶段1完成: 引用列表抓取成功")
+            self.log_manager.success("Phase 1 · 施引文献检索 完成")
 
             # ==================== 阶段2: 搜索作者信息 ====================
             self.log_manager.info("=" * 50)
-            self.log_manager.info("阶段2: 开始搜索作者学术信息")
+            self.log_manager.info("Phase 2 · 作者信息采集: 开始搜索作者学术信息")
             self.log_manager.info("=" * 50)
 
             author_info_file = result_dir / f"{file_prefix}_author_information.jsonl"
@@ -142,11 +568,11 @@ class TaskExecutor:
                 self._handle_quota_exceeded()
                 return
 
-            self.log_manager.success("阶段2完成: 作者信息搜索成功")
+            self.log_manager.success("Phase 2 · 作者信息采集 完成")
 
             # ==================== 阶段3: 导出结果 ====================
             self.log_manager.info("=" * 50)
-            self.log_manager.info("阶段3: 开始导出结果")
+            self.log_manager.info("Phase 3 · 导出结果")
             self.log_manager.info("=" * 50)
 
             excel_file = result_dir / f"{file_prefix}_author_information.xlsx"
@@ -160,13 +586,13 @@ class TaskExecutor:
                 json_output=json_file,
             )
 
-            self.log_manager.success("阶段3完成: 导出成功")
+            self.log_manager.success("Phase 3 · 导出 完成")
 
             # ==================== 阶段4: 引用描述（可选）====================
             citing_desc_excel = excel_file
             if config.enable_citing_description:
                 self.log_manager.info("=" * 50)
-                self.log_manager.info("阶段4: 搜索引用描述")
+                self.log_manager.info("Phase 4 · 引文语境提取: 搜索引用描述")
                 self.log_manager.info("=" * 50)
 
                 citing_desc_excel = result_dir / f"{file_prefix}_results_with_citing_desc.xlsx"
@@ -187,7 +613,7 @@ class TaskExecutor:
             html_file = None
             if config.enable_dashboard:
                 self.log_manager.info("=" * 50)
-                self.log_manager.info("阶段5: 生成 HTML 画像报告")
+                self.log_manager.info("Phase 5 · 报告生成与导出: 生成 HTML 画像报告")
                 self.log_manager.info("=" * 50)
 
                 html_file = result_dir / f"{file_prefix}_dashboard.html"
@@ -274,7 +700,7 @@ class TaskExecutor:
 
             # ==================== 阶段1: 抓取引用列表 ====================
             self.log_manager.info("=" * 50)
-            self.log_manager.info("阶段1: 开始抓取Google Scholar引用列表")
+            self.log_manager.info("Phase 1 · 施引文献检索: 开始抓取引用列表")
             self.log_manager.info("=" * 50)
 
             citing_papers_file = DATA_DIR / "jsonl" / f"{file_prefix}_citing_papers.jsonl"
@@ -293,7 +719,7 @@ class TaskExecutor:
                 return
 
             self.log_manager.success("=" * 50)
-            self.log_manager.success("阶段1完成: 引用列表抓取成功")
+            self.log_manager.success("Phase 1 · 施引文献检索 完成")
             self.log_manager.success(f"输出文件: {citing_papers_file}")
             self.log_manager.success("=" * 50)
 
@@ -397,7 +823,7 @@ class TaskExecutor:
 
             # ==================== 阶段2: 搜索作者信息 ====================
             self.log_manager.info("=" * 50)
-            self.log_manager.info("阶段2: 开始搜索作者学术信息")
+            self.log_manager.info("Phase 2 · 作者信息采集: 开始搜索作者学术信息")
             self.log_manager.info("=" * 50)
 
             author_info_file = DATA_DIR / "jsonl" / f"{file_prefix}_author_information.jsonl"
@@ -414,11 +840,11 @@ class TaskExecutor:
                 self.log_manager.warning("任务已被用户取消")
                 return
 
-            self.log_manager.success("阶段2完成: 作者信息搜索成功")
+            self.log_manager.success("Phase 2 · 作者信息采集 完成")
 
             # ==================== 阶段3: 导出结果 ====================
             self.log_manager.info("=" * 50)
-            self.log_manager.info("阶段3: 开始导出结果")
+            self.log_manager.info("Phase 3 · 导出结果")
             self.log_manager.info("=" * 50)
 
             excel_file = DATA_DIR / "excel" / f"{file_prefix}_author_information.xlsx"
@@ -571,7 +997,7 @@ class TaskExecutor:
                     self.log_manager.info("=" * 50)
 
                     # —— 查找引用 URL ——
-                    url = url_finder.find_citation_url(title)
+                    url = await url_finder.find_citation_url(title)
                     if not url:
                         self.log_manager.warning(f"跳过（未找到引用链接）: {title}")
                         continue
@@ -579,7 +1005,7 @@ class TaskExecutor:
                     paper_slug = f"paper{i+1}"
 
                     # —— Phase 1：爬取引用列表 ——
-                    self.log_manager.info("Phase 1: 爬取引用列表")
+                    self.log_manager.info("Phase 1 · 施引文献检索")
 
                     # —— 预检测引用数，超1000时询问是否开启年份遍历 ——
                     if not config.enable_year_traverse and not self._year_traverse_prompted:
@@ -631,43 +1057,6 @@ class TaskExecutor:
                         break
                     citing_files.append((citing_file, canonical))
 
-                    if not config.skip_author_search:
-                        # —— 获取目标论文作者（用于自引检测，每个 canonical 只查一次）——
-                        if canonical not in target_authors_cache:
-                            need_self_filter = (
-                                config.enable_renowned_scholar_filter or config.enable_citing_description
-                            )
-                            if not config.test_mode and need_self_filter:
-                                self.log_manager.info("自引检测：正在获取目标论文作者...")
-                                target_authors_cache[canonical] = await self._fetch_target_authors(canonical, config)
-                            else:
-                                target_authors_cache[canonical] = ""
-                        target_authors = target_authors_cache[canonical]
-
-                        # —— Phase 2：搜索作者信息（以 canonical 为 Citing_Paper 值）——
-                        self.log_manager.info("Phase 2: 搜索作者信息")
-                        author_file = result_dir / f"{paper_slug}_authors.jsonl"
-                        await self._run_skill(
-                            "phase2_author_intel",
-                            config,
-                            input_file=citing_file,
-                            output_file=author_file,
-                            sleep_seconds=config.sleep_between_authors,
-                            parallel_workers=config.parallel_author_search,
-                            citing_paper=canonical,   # 始终用正式标题写入 Citing_Paper
-                            target_paper_authors=target_authors,
-                            author_cache=author_cache,
-                            quota_event=self.quota_exceeded_event,
-                        )
-                        if self.should_cancel:
-                            break
-                        if self.quota_exceeded_event.is_set():
-                            self._handle_quota_exceeded()
-                            return
-                        author_info_files.append(author_file)
-                    else:
-                        self.log_manager.info("跳过 Phase 2（skip_author_search=True）")
-
             # Guard: 检查 Phase 1 是否爬取到任何引用文献
             _total_citing = 0
             for _cf, _ in citing_files:
@@ -687,251 +1076,80 @@ class TaskExecutor:
                 self.log_manager.warning("Phase 1 未爬取到任何引用文献，任务结束")
                 return
 
-            if not config.skip_author_search:
-                if not author_info_files:
-                    self.log_manager.warning("没有成功处理的论文，任务结束")
-                    return
+            # ── New Pipeline: Phase 2 (API metadata) + Phase 3 (scholar assess + export) ──
+            pipeline_result = await self._run_new_phase2_and_3(
+                citing_files=citing_files,
+                result_dir=result_dir,
+                output_prefix=output_prefix,
+                config=config,
+                canonical_titles=canonical_titles,
+            )
+            if pipeline_result is None:
+                self.log_manager.warning("管线未产出有效结果，任务结束")
+                return
+            merged_file, excel_file, json_file = pipeline_result
 
-                # —— 合并所有 author JSONL，按 (Paper_Link, Citing_Paper) 去重 ——
-                # 注意：每行格式为 {count: record_dict}，需提取内层 record_dict 才能访问字段
-                merged_file = result_dir / "merged_authors.jsonl"
-                seen_links: set[str] = set()
-                with open(merged_file, "w", encoding="utf-8") as out_f:
-                    for af in author_info_files:
-                        if not af.exists():
-                            continue
-                        for line in af.read_text(encoding="utf-8").splitlines():
+            # —— Phase 4：引文语境提取（可选，PDF 下载 + 本地解析）——
+            citing_desc_excel = excel_file
+            if config.enable_citing_description:
+                import pandas as pd
+
+                self.log_manager.info("=" * 50)
+                self.log_manager.info("Phase 4 · 引文语境提取: PDF 下载 + 本地解析 + 轻量 LLM")
+                self.log_manager.info("=" * 50)
+
+                # Use new PDF-based citation extraction skill
+                phase4_output_jsonl = result_dir / f"{output_prefix}_citing_desc.jsonl"
+                target_title = canonical_titles[0] if canonical_titles else ""
+
+                await self._run_skill(
+                    "phase4_citation_extract",
+                    config,
+                    input_file=merged_file,
+                    output_file=phase4_output_jsonl,
+                    target_title=target_title,
+                    target_authors=[],
+                    citation_desc_cache=desc_cache,
+                )
+
+                # Merge descriptions back into Excel
+                if phase4_output_jsonl.exists():
+                    desc_map = {}
+                    with open(phase4_output_jsonl, encoding="utf-8") as f:
+                        for line in f:
                             line = line.strip()
                             if not line:
                                 continue
                             try:
-                                outer = _json.loads(line)
-                                # 每行格式：{count_key: record_dict}
-                                inner = next(iter(outer.values())) if outer else {}
+                                rec = _json.loads(line)
+                                # Extract from legacy wrapped format {idx: {fields}}
+                                if isinstance(rec, dict):
+                                    inner = rec
+                                    for v in rec.values():
+                                        if isinstance(v, dict) and "Paper_Title" in v:
+                                            inner = v
+                                            break
+                                    title = inner.get("Paper_Title", inner.get("paper_title", ""))
+                                    desc = inner.get("Citing_Description", "")
+                                    if title and desc:
+                                        desc_map[title.strip()] = desc
                             except Exception:
-                                out_f.write(line + "\n")
                                 continue
-                            # 用 (Paper_Link, Citing_Paper) 组合去重：
-                            #   同一篇引用论文 + 同一目标论文 → 去重（处理曾用名重复）
-                            #   同一篇引用论文 + 不同目标论文 → 保留（引用了不同目标）
-                            link = str(inner.get("Paper_Link") or "").strip()
-                            citing = str(inner.get("Citing_Paper") or "").strip()
-                            title = str(inner.get("Paper_Title") or "").strip()
-                            dedup_key = (
-                                f"{link}::{citing}" if link
-                                else f"{title}::{citing}" if title
-                                else line[:80]
-                            )
-                            if dedup_key in seen_links:
-                                continue
-                            seen_links.add(dedup_key)
-                            out_f.write(_json.dumps(outer, ensure_ascii=False) + "\n")
 
-                if merged_file.stat().st_size == 0:
-                    self.log_manager.warning("合并后 JSONL 为空（所有记录均被去重或过滤），Phase 3 将生成空输出文件")
-
-                # —— Phase 3：导出 ——
-                self.log_manager.info("Phase 3: 导出结果")
-                excel_file = result_dir / f"{output_prefix}_results.xlsx"
-                json_file = result_dir / f"{output_prefix}_results.json"
-                await self._run_skill(
-                    "phase3_export",
-                    config,
-                    input_file=merged_file,
-                    excel_output=excel_file,
-                    json_output=json_file,
-                )
-
-                # 打印本次运行的缓存统计
-                await author_cache.flush()   # 确保最后不足 WRITE_EVERY 条的数据落盘
-                final_stats = author_cache.stats()
-                self.log_manager.info(
-                    f"作者缓存统计：命中 {final_stats['hits']} 篇 / "
-                    f"新搜索 {final_stats['misses']} 篇 / "
-                    f"写入 {final_stats['updates']} 次 / "
-                    f"累计 {final_stats['total_entries']} 条"
-                )
-            else:
-                self.log_manager.info("跳过合并和 Phase 3（skip_author_search=True）")
-                # Build a simple Excel from citing files for Phase 4
-                import pandas as pd
-                rows = []
-                for cf, canonical in citing_files:
-                    if not cf.exists():
-                        continue
-                    for line in cf.read_text(encoding="utf-8").splitlines():
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            data = _json.loads(line)
-                            for page_data in data.values():
-                                for paper in page_data.get("paper_dict", {}).values():
-                                    authors_dict = paper.get("authors", {})
-                                    rows.append({
-                                        "Paper_Title": paper.get("paper_title", ""),
-                                        "Paper_Link": paper.get("paper_link", ""),
-                                        "Paper_Year": paper.get("paper_year"),
-                                        "Citations": paper.get("citation", ""),
-                                        "Citing_Paper": canonical,
-                                        "Authors_with_Profile": _json.dumps(list(authors_dict.keys()), ensure_ascii=False),
-                                    })
-                        except Exception:
-                            continue
-                excel_file = result_dir / f"{output_prefix}_results.xlsx"
-                json_file = result_dir / f"{output_prefix}_results.json"
-                if rows:
-                    df = pd.DataFrame(rows)
-                    excel_file.parent.mkdir(parents=True, exist_ok=True)
-                    df.to_excel(excel_file, index=False)
-                    df.to_json(json_file, orient="records", force_ascii=False, indent=2)
-                    self.log_manager.info(f"从 Phase 1 构建了 {len(rows)} 条记录")
-                else:
-                    self.log_manager.warning("未找到任何引用文献记录，任务结束")
-                    empty_df = pd.DataFrame(columns=["Paper_Title", "Paper_Link", "Paper_Year",
-                                                     "Citations", "Citing_Paper", "Authors_with_Profile"])
-                    excel_file.parent.mkdir(parents=True, exist_ok=True)
-                    empty_df.to_excel(excel_file, index=False)
-                    return
-
-                # verify/specified 模式：报告学者匹配结果
-                if config.citing_description_scope == "specified_only":
-                    scholar_names = [s.strip() for s in config.specified_scholars.split(",") if s.strip()]
-                    if scholar_names:
-                        matched, unmatched = self._match_scholars_in_citing(citing_files, scholar_names)
-                        self.log_manager.info(f"学者匹配结果: {len(matched)} 匹配 / {len(unmatched)} 未找到")
-                        for name, papers in matched.items():
-                            self.log_manager.info(f"  {name}: {len(papers)} 篇引用论文")
-                        for name in unmatched:
-                            self.log_manager.warning(f"  {name}: 未引用此论文")
-
-            # —— Phase 4：搜索引用描述（可选）——
-            citing_desc_excel = excel_file
-            if config.enable_citing_description:
-                import pandas as pd
-                # 根据 citing_description_scope 确定 Phase 4 的输入
-                phase4_input = excel_file
-                _renowned_only_mode = False  # 是否需要事后合并回全量文件
-                _skip_phase4 = False  # 是否跳过 Phase 4（如：进阶模式下未检测到重量级学者）
-                if config.citing_description_scope == "renowned_only" and not config.skip_author_search:
-                    self.log_manager.info("Phase 4 范围: 仅院士/Fellow论文（去重，格式对齐）")
-                    # 使用 top-tier 文件（仅院士/Fellow），排除其他知名学者
-                    top_tier_file = excel_file.with_stem(excel_file.stem + "_top-tier_scholar")
-                    all_renowned_file = excel_file.with_stem(excel_file.stem + "_all_renowned_scholar")
-                    # 优先用 top-tier 文件；若不存在则回退到全量著名学者文件
-                    source_scholar_file = top_tier_file if top_tier_file.exists() else all_renowned_file
-                    if source_scholar_file.exists():
-                        df_full = pd.read_excel(excel_file)
-                        df_renowned_scholars = pd.read_excel(source_scholar_file)
-                        # 从院士/Fellow文件取所在施引论文的唯一标题集合
-                        renowned_titles = set(
-                            df_renowned_scholars['PaperTitle'].dropna().str.strip()
-                        )
-                        if not renowned_titles:
-                            self.log_manager.warning(
-                                "未检测到重量级学者，跳过引用描述搜索（进阶模式下无重量级引用者）"
-                            )
-                            _skip_phase4 = True
-                        else:
-                            # 过滤全量论文文件，保留大佬论文行并按 Paper_Title 去重
-                            # → 正确列名格式，且每篇论文只搜索一次
-                            df_phase4 = (
-                                df_full[df_full['Paper_Title'].str.strip().isin(renowned_titles)]
-                                .drop_duplicates(subset=['Paper_Title'])
-                                .reset_index(drop=True)
-                            )
-                            phase4_input = result_dir / f"{output_prefix}_temp_phase4_renowned.xlsx"
-                            df_phase4.to_excel(phase4_input, index=False)
-                            _renowned_only_mode = True
-                            self.log_manager.info(
-                                f"  {len(df_phase4)} 篇院士/Fellow论文（去重），共 {df_full['Paper_Title'].nunique()} 篇"
-                            )
-                    else:
-                        self.log_manager.warning("未找到院士/Fellow学者文件，将搜索全部论文")
-                elif config.citing_description_scope == "specified_only":
-                    self.log_manager.info("Phase 4 范围: 仅指定学者论文")
-                    scholar_names = [s.strip() for s in config.specified_scholars.split(",") if s.strip()]
-                    if scholar_names:
-                        phase4_input = self._filter_by_scholars(excel_file, scholar_names, result_dir, output_prefix)
-                    else:
-                        self.log_manager.warning("未指定学者名单，将搜索全部论文")
-
-                citing_desc_excel = result_dir / f"{output_prefix}_results_with_citing_desc.xlsx"
-                # Phase 4 输出先写入临时文件，renowned_only 模式下后续需要合并回全量
-                _phase4_output = (
-                    result_dir / f"{output_prefix}_temp_phase4_output.xlsx"
-                    if _renowned_only_mode else citing_desc_excel
-                )
-                if not _skip_phase4:
-                    if config.test_mode:
-                        # 测试模式：直接添加伪造引用描述，不调用 LLM
-                        self.log_manager.info("[测试模式] Phase 4: 注入伪造引用描述")
-                        df = pd.read_excel(phase4_input)
-                        fake_descs = [
-                            "该论文在 Related Work 部分明确引用了目标论文，指出其在自注意力机制方面的奠基性贡献，并以此为基础展开研究。",
-                            "Introduction 章节中正面引用目标论文，称其为'近年来最具影响力的工作之一'，并借鉴其架构设计思路。",
-                            "Methodology 部分将目标论文作为主要对比基线，实验结果表明在多个指标上超越了目标论文的方法。",
-                            "Experiments 章节引用目标论文的评估框架，作为标准 benchmark 测试集的来源。",
-                            "Related Work 中将目标论文归类为预训练语言模型的代表性工作，对其局限性进行了客观分析。",
-                        ]
-                        df["Citing_Description"] = [
-                            fake_descs[i % len(fake_descs)] for i in range(len(df))
-                        ]
-                        _phase4_output.parent.mkdir(parents=True, exist_ok=True)
-                        df.to_excel(_phase4_output, index=False)
-                        self.log_manager.info(f"已生成伪造引用描述: {_phase4_output}")
-                    else:
-                        self.log_manager.info("Phase 4: 搜索引用描述")
-                        phase4_result = await self._run_skill(
-                            "phase4_citation_desc",
-                            config,
-                            input_excel=phase4_input,
-                            output_excel=_phase4_output,
-                            parallel_workers=config.parallel_author_search,
-                            quota_event=self.quota_exceeded_event,
-                            desc_cache=desc_cache,
-                        )
-                        if self.quota_exceeded_event.is_set():
-                            self._handle_quota_exceeded()
-                            return
-                        s = phase4_result.get("cache_stats", {})
-                        self.log_manager.info(
-                            f"引用描述记忆池: 共 {s.get('total_entries', 0)} 条 | "
-                            f"命中 {s.get('hits', 0)} | 新增 {s.get('updates', 0)}"
-                        )
-
-                # renowned_only 模式：将描述合并回全量论文文件，确保 Phase 5 能读到完整数据
-                if _renowned_only_mode and _phase4_output.exists() and not _skip_phase4:
-                    self.log_manager.info("合并引用描述回全量论文文件...")
-                    df_full = pd.read_excel(excel_file)
-                    df_partial = pd.read_excel(_phase4_output)
-                    if df_partial.empty:
-                        self.log_manager.info("  Phase 4 输出为空，跳过引用描述合并")
-                    else:
-                        title_to_desc = (
-                            df_partial.set_index(df_partial['Paper_Title'].str.strip())['Citing_Description']
-                            .fillna('').to_dict()
-                        )
-                        df_full['Citing_Description'] = (
-                            df_full['Paper_Title'].str.strip().map(title_to_desc).fillna('')
-                        )
-                        citing_desc_excel.parent.mkdir(parents=True, exist_ok=True)
-                        df_full.to_excel(citing_desc_excel, index=False)
-                        # 清理临时文件
-                        try:
-                            phase4_input.unlink(missing_ok=True)
-                            _phase4_output.unlink(missing_ok=True)
-                        except Exception:
-                            pass
-                        n_with_desc = (df_full['Citing_Description'].str.strip() != '').sum()
-                        self.log_manager.info(
-                            f"  合并完成：{len(df_full)} 行，其中 {n_with_desc} 行有引用描述"
+                    if desc_map:
+                        df = pd.read_excel(excel_file)
+                        df["Citing_Description"] = df["Paper_Title"].str.strip().map(desc_map).fillna("")
+                        citing_desc_excel = result_dir / f"{output_prefix}_results_with_citing_desc.xlsx"
+                        df.to_excel(citing_desc_excel, index=False)
+                        n_with = (df["Citing_Description"].str.strip() != "").sum()
+                        self.log_manager.success(
+                            f"Phase 4 完成: {n_with}/{len(df)} 篇有引文语境描述"
                         )
 
             # —— Phase 5：生成 HTML 画像报告（可选）——
             html_file = None
             if config.enable_dashboard:
-                self.log_manager.info("Phase 5: 生成 HTML 画像报告")
+                self.log_manager.info("Phase 5 · 报告生成与导出")
                 html_file = result_dir / f"{output_prefix}_dashboard.html"
 
                 all_renowned = excel_file.with_stem(excel_file.stem + "_all_renowned_scholar")
@@ -1113,7 +1331,7 @@ class TaskExecutor:
                 empty.to_excel(top_renowned, index=False)
 
             # 运行 Phase 5
-            self.log_manager.info("Phase 5: 生成 HTML 画像报告")
+            self.log_manager.info("Phase 5 · 报告生成与导出")
             html_file = result_dir / f"{output_prefix}_dashboard.html"
 
             def _fwd(p: Path) -> str:
@@ -1218,11 +1436,13 @@ class TaskExecutor:
         """
         try:
             from openai import AsyncOpenAI
+            import httpx
             client = AsyncOpenAI(
                 api_key=config.openai_api_key,
                 base_url=config.openai_base_url,
                 timeout=60.0,
                 max_retries=2,
+                http_client=httpx.AsyncClient(trust_env=False, timeout=60.0),
             )
             q = (f"请搜索论文《{title}》的所有作者，"
                  f"列出每位作者的姓名及其所在单位/机构。")

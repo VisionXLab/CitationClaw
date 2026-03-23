@@ -1,0 +1,51 @@
+presets:
+  openai:
+    name: "OpenAI"
+    base_url: "https://api.openai.com/v1"
+    default_model: "gpt-4o-mini"
+
+  deepseek:
+    name: "DeepSeek"
+    base_url: "https://api.deepseek.com/v1"
+    default_model: "deepseek-chat"
+
+  google:
+    name: "Google Gemini"
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
+    default_model: "gemini-2.0-flash"
+
+  zhipu:
+    name: "智谱 AI"
+    base_url: "https://open.bigmodel.cn/api/paas/v4/"
+    default_model: "glm-4-flash"
+
+  siliconflow:
+    name: "硅基流动"
+    base_url: "https://api.siliconflow.cn/v1"
+    default_model: "Qwen/Qwen2.5-7B-Instruct"
+
+  ollama:
+    name: "Ollama 本地"
+    base_url: "http://localhost:11434/v1"
+    default_model: "qwen2.5:7b"
+
+  vapi:
+    name: "V-API 中转"
+    base_url: "https://api.gpt.ge/v1"
+    default_model: "gemini-3-flash-preview-nothinking"
+
+  openrouter:
+    name: "OpenRouter"
+    base_url: "https://openrouter.ai/api/v1"
+    default_model: "google/gemini-2.0-flash-001"
+
+  custom:
+    name: "自定义 (OpenAI 兼容)"
+    base_url: ""
+    default_model: ""
+
+# User's active config (single model, simple)
+active:
+  provider: "vapi"
+  api_key: ""
+  model: ""  # empty = use preset default_model

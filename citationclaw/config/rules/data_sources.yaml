@@ -1,0 +1,41 @@
+metadata_sources:
+  - name: openalex
+    priority: 1
+    base_url: "https://api.openalex.org"
+    rate_limit: 10  # requests per second
+    provides:
+      - authors
+      - affiliations
+      - citations
+      - concepts
+    cost: free
+
+  - name: semantic_scholar
+    priority: 2
+    base_url: "https://api.semanticscholar.org/graph/v1"
+    rate_limit: 1  # with API key
+    provides:
+      - h_index
+      - influential_citations
+      - abstracts
+    cost: free
+
+  - name: arxiv
+    priority: 3
+    base_url: "http://export.arxiv.org/api"
+    rate_limit: 3
+    provides:
+      - preprint_metadata
+      - pdf_links
+    cost: free
+
+merge_strategy:
+  primary: openalex
+  supplements:
+    semantic_scholar:
+      - h_index
+      - influential_citation_count
+    arxiv:
+      - pdf_url
+  conflict_resolution: "prefer higher priority source"
+  fallback: llm

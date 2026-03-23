@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "citationclaw"
+version = "2.0.0"
+description = "论文被引画像分析工具 — 自动爬取施引文献、识别著名学者、生成可视化 HTML 报告"
+readme = "README.md"
+license = "CC-BY-NC-4.0"
+license-files = ["LICENSE"]
+authors = [
+  { name = "Qihao Yang" },
+  { name = "Ziqian Fan" },
+  { name = "Ziyang Gong" },
+  { name = "Xue Yang" },
+]
+requires-python = ">=3.10"
+keywords = ["citation", "google-scholar", "academic", "research"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  "fastapi==0.109.0",
+  "uvicorn[standard]==0.27.0",
+  "jinja2==3.1.3",
+  "python-multipart==0.0.6",
+  "requests==2.31.0",
+  "httpx>=0.25.0,<0.28.0",
+  "tqdm==4.66.1",
+  "pandas>=2.2.3",
+  "openpyxl>=3.1.5",
+  "beautifulsoup4==4.12.3",
+  "openai==1.10.0",
+  "pydantic>=2.9.0,<3.0.0",
+  "PyMuPDF>=1.24.0",
+  "playwright>=1.40.0",
+  "pyyaml>=6.0",
+]
+
+[project.urls]
+Homepage = "https://visionxlab.github.io/CitationClaw/"
+Repository = "https://github.com/VisionXLab/CitationClaw"
+
+[project.scripts]
+citationclaw = "citationclaw.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["citationclaw*"]
+
+[tool.setuptools.package-data]
+citationclaw = [
+  "static/**/*",
+  "templates/**/*",
+  "config/**/*",
+]

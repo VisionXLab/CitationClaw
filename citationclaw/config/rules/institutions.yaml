@@ -1,0 +1,100 @@
+tech_companies:
+  - Google
+  - DeepMind
+  - OpenAI
+  - Meta AI
+  - Meta Research
+  - Microsoft Research
+  - Microsoft
+  - Apple
+  - Amazon Science
+  - Amazon
+  - NVIDIA
+  - Huawei
+  - Tencent
+  - Alibaba
+  - Baidu
+  - ByteDance
+  - Samsung
+  - Intel
+  - IBM Research
+  - Adobe Research
+  - Salesforce Research
+
+top_universities_cn:
+  - 清华大学
+  - Tsinghua University
+  - 北京大学
+  - Peking University
+  - 上海交通大学
+  - Shanghai Jiao Tong
+  - 浙江大学
+  - Zhejiang University
+  - 中国科学技术大学
+  - University of Science and Technology of China
+  - 复旦大学
+  - Fudan University
+  - 南京大学
+  - Nanjing University
+  - 哈尔滨工业大学
+  - Harbin Institute of Technology
+  - 中国科学院
+  - Chinese Academy of Sciences
+  - 华中科技大学
+  - Huazhong University
+  - 武汉大学
+  - Wuhan University
+  - 西安交通大学
+  - 北京航空航天大学
+  - Beihang University
+  - 中山大学
+  - Sun Yat-sen University
+  - 同济大学
+  - Tongji University
+  - 东南大学
+  - Southeast University
+  - 北京理工大学
+
+top_universities_intl:
+  - MIT
+  - Massachusetts Institute of Technology
+  - Stanford University
+  - Stanford
+  - Carnegie Mellon University
+  - Carnegie Mellon
+  - UC Berkeley
+  - University of California, Berkeley
+  - Harvard University
+  - Harvard
+  - Princeton University
+  - Princeton
+  - Caltech
+  - California Institute of Technology
+  - University of Oxford
+  - Oxford
+  - University of Cambridge
+  - Cambridge
+  - ETH Zurich
+  - ETH
+  - University of Toronto
+  - Georgia Institute of Technology
+  - Georgia Tech
+  - University of Michigan
+  - Columbia University
+  - University of Washington
+  - Cornell University
+  - UCLA
+  - University of Illinois
+  - UIUC
+  - NUS
+  - National University of Singapore
+  - EPFL
+  - University of Sydney
+  - University of Melbourne
+  - Nanyang Technological University
+  - NTU
+  - KAIST
+  - University of Tokyo
+  - Kyoto University
+  - Technical University of Munich
+  - TU Munich
