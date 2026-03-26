@@ -102,6 +102,13 @@ class MinerUParser:
         cached = self._load_cached(output_dir)
         if cached:
             return cached
+        # Skip oversized PDFs
+        file_size = pdf_path.stat().st_size if pdf_path.exists() else 0
+        page_count = self._get_page_count(pdf_path)
+        if file_size > 100 * 1024 * 1024 or page_count > 200:
+            if self._log:
+                self._log(f"    [PDF跳过] 文件过大 ({file_size // (1024*1024)}MB, {page_count}页)，跳过解析")
+            return None
         if self._has_local_mineru and not self._local_mineru_failed:
             result = self._parse_local_mineru(pdf_path, output_dir)
             if result:
@@ -113,9 +120,19 @@ class MinerUParser:
         """Quick page count via PyMuPDF (no full parse)."""
         try:
             import fitz
-            doc = fitz.open(str(pdf_path))
-            n = len(doc)
-            doc.close()
+            import os, sys
+            stderr_fd = sys.stderr.fileno()
+            old_stderr = os.dup(stderr_fd)
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, stderr_fd)
+            try:
+                doc = fitz.open(str(pdf_path))
+                n = len(doc)
+                doc.close()
+            finally:
+                os.dup2(old_stderr, stderr_fd)
+                os.close(old_stderr)
+                os.close(devnull)
             return n
         except Exception:
             return 0
@@ -141,6 +158,13 @@ class MinerUParser:
 
         file_size = pdf_path.stat().st_size if pdf_path.exists() else 0
         page_count = self._get_page_count(pdf_path)
+
+        # Skip oversized PDFs (>100MB or >200 pages)
+        if file_size > 100 * 1024 * 1024 or page_count > 200:
+            if self._log:
+                self._log(f"    [PDF跳过] 文件过大 ({file_size // (1024*1024)}MB, {page_count}页)，跳过解析")
+            return None
+
         is_large = file_size > _AGENT_MAX_SIZE or page_count > _AGENT_MAX_PAGES
 
         # 2. Cloud routing — try both tiers with smart fallthrough
@@ -550,9 +574,19 @@ class MinerUParser:
         """Fallback: simple PyMuPDF text extraction."""
         try:
             import fitz
-            doc = fitz.open(str(pdf_path))
-            pages = [page.get_text() for page in doc]
-            doc.close()
+            import os, sys
+            stderr_fd = sys.stderr.fileno()
+            old_stderr = os.dup(stderr_fd)
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, stderr_fd)
+            try:
+                doc = fitz.open(str(pdf_path))
+                pages = [page.get_text() for page in doc]
+                doc.close()
+            finally:
+                os.dup2(old_stderr, stderr_fd)
+                os.close(old_stderr)
+                os.close(devnull)
 
             full_text = "\n\n".join(pages)
             first_page = pages[0] if pages else ""

@@ -667,6 +667,51 @@ async def test_openai_api(request: APITestRequest):
         )
 
 
+# ── Lightweight pre-test endpoints ───────────────────────────────────────
+class PretestRequest(BaseModel):
+    api_key: str
+    base_url: str
+    model: str
+
+
+@app.post("/api/pretest/search_llm")
+async def pretest_search_llm(req: PretestRequest):
+    """Quick test: verify Search LLM with web_search_options works."""
+    from datetime import datetime
+    try:
+        client = _make_openai_client(req.api_key, req.base_url, timeout=30.0)
+        resp = client.chat.completions.create(
+            model=req.model,
+            messages=[{"role": "user", "content": "请告诉我现在的准确日期和时间。"}],
+            temperature=0.0,
+            extra_body={"web_search_options": {}},
+        )
+        answer = resp.choices[0].message.content or ""
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return {"status": "success", "message": f"Search LLM 可用 ✓（{now}）", "reply": answer}
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"status": "error", "message": f"Search LLM 不可用: {e}"})
+
+
+@app.post("/api/pretest/light_model")
+async def pretest_light_model(req: PretestRequest):
+    """Quick test: verify lightweight model works."""
+    from datetime import datetime
+    try:
+        client = _make_openai_client(req.api_key, req.base_url, timeout=30.0)
+        resp = client.chat.completions.create(
+            model=req.model,
+            messages=[{"role": "user", "content": "请回复OK两个字母。"}],
+            temperature=0.0,
+        )
+        answer = resp.choices[0].message.content or ""
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return {"status": "success", "message": f"轻量模型可用 ✓（{now}）", "reply": answer}
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"status": "error", "message": f"轻量模型不可用: {e}"})
+
+
+
 @app.get("/api/task/status")
 async def get_task_status():
     return task_executor.get_status()

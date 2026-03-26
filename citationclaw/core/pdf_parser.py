@@ -82,9 +82,20 @@ class PDFCitationParser:
         if not pdf_path or not pdf_path.exists():
             return []
 
-        doc = fitz.open(str(pdf_path))
-        full_text = "\n".join(page.get_text() for page in doc)
-        doc.close()
+        # Suppress MuPDF C-level stderr noise (zlib errors from corrupted PDFs)
+        import os, sys
+        stderr_fd = sys.stderr.fileno()
+        old_stderr = os.dup(stderr_fd)
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, stderr_fd)
+        try:
+            doc = fitz.open(str(pdf_path))
+            full_text = "\n".join(page.get_text() for page in doc)
+            doc.close()
+        finally:
+            os.dup2(old_stderr, stderr_fd)
+            os.close(old_stderr)
+            os.close(devnull)
 
         return self.extract_from_text(
             full_text, target_title, target_authors, target_year, context_window

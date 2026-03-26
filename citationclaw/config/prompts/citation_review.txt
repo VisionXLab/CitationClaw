@@ -1,0 +1,34 @@
+你是一位严谨的学术引文审查员。你的任务是验证提取结果是否正确。
+
+【施引论文】《{citing_title}》
+【目标论文】《{target_title}》
+
+【提取结果】：
+- 参考文献条目: {ref_entry}
+- 引用标识: {citation_key}
+- 所在章节: {section}
+- 摘录句子: {sentence}
+
+以下是相关的 PDF 原文段落（供你交叉核对）：
+---
+{parsed_paragraphs}
+---
+
+【审查要点】——逐条检查，任何一条不通过则判定 reject：
+1. 参考文献条目是否确实是目标论文《{target_title}》？（核对标题是否匹配）
+2. 引用标识 {citation_key} 是否与该参考文献条目对应？（编号一致）
+3. 摘录的句子是否在上方正文段落中真实存在？（逐字核对，不能是编造的）
+4. 句子中是否确实包含引用标识 {citation_key}？
+5. 句子描述的内容是否关于目标论文？（不是同一句中讨论的其他论文）
+
+【情感判断】（仅在 accept 时需要）：
+- "正面"：原文有明确积极词汇（state-of-the-art、pioneering、significantly outperforms、novel 等）
+- "负面"：原文有明确批评词汇（limited、fails to、suffers from、drawback 等）
+- "中性"：客观引用、背景铺垫、方法对比——不确定时一律标"中性"
+
+输出 JSON（不要任何其他文字）：
+{{
+  "verdict": "accept 或 reject",
+  "reason": "简短说明判定理由（一句话）",
+  "sentiment": "正面|中性|负面（仅 accept 时填写）"
+}}

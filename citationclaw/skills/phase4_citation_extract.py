@@ -209,92 +209,141 @@ class CitationExtractSkill:
         )
         return contexts
 
+    @staticmethod
+    def _build_paragraphs(contexts: List[dict]) -> str:
+        """Build structured paragraph text from contexts."""
+        parts = []
+        for c in contexts:
+            tag = "★" if c.get("match_type") == "direct" else ""
+            parts.append(f"[{c['section']}]{tag} {c['text']}")
+        return "\n\n".join(parts)
+
+    @staticmethod
+    def _parse_json(text: str) -> Optional[dict]:
+        """Parse JSON from LLM response, stripping markdown fences."""
+        import re
+        text = re.sub(r'```json\s*', '', text)
+        text = re.sub(r'```\s*', '', text).strip()
+        try:
+            data = json.loads(text)
+            return data if isinstance(data, dict) else None
+        except (json.JSONDecodeError, ValueError):
+            return None
+
     async def _llm_extract(
         self, ctx: SkillContext, prompt_loader: PromptLoader,
         model: str, citing_title: str, target_title: str,
         contexts: List[dict],
     ) -> str:
-        """Use lightweight LLM to extract citation description from parsed contexts.
+        """Dual-agent extraction: Extract → Review → (Retry if rejected).
 
-        Returns structured string: "[Section] description text 【sentiment引用】"
-        or "未在已解析文本中找到相关引用描述" if not found.
+        Agent 1 (Extractor): Finds citation key and extracts the exact sentence.
+        Agent 2 (Reviewer): Verifies correctness, rejects false matches, assigns sentiment.
+        Up to 2 retries if reviewer rejects.
         """
         try:
             from openai import AsyncOpenAI
             from citationclaw.core.http_utils import make_async_client
-            import re
-
-            # Build structured context text with section tags and match type
-            parts = []
-            for c in contexts:
-                if c.get("match_type") == "direct":
-                    tag = "★"
-                elif c.get("match_type") == "ref_entry":
-                    tag = ""  # Reference entry, included for key identification
-                else:
-                    tag = ""
-                parts.append(f"[{c['section']}]{tag} {c['text']}")
-            parsed_paragraphs = "\n\n".join(parts)
-
-            prompt = prompt_loader.render(
-                "citation_extract",
-                citing_title=citing_title,
-                target_title=target_title,
-                parsed_paragraphs=parsed_paragraphs,
-            )
 
             client = AsyncOpenAI(
                 api_key=ctx.config.openai_api_key,
                 base_url=(ctx.config.openai_base_url or "").rstrip("/") + "/",
                 http_client=make_async_client(timeout=60.0),
             )
-            response = await client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-            )
-            text = response.choices[0].message.content.strip()
 
-            # Parse JSON response
-            text_clean = re.sub(r'```json\s*', '', text)
-            text_clean = re.sub(r'```\s*', '', text_clean).strip()
-            try:
-                data = json.loads(text_clean)
-                if isinstance(data, dict):
-                    if not data.get("found", True):
-                        return "未在已解析文本中找到相关引用描述"
+            parsed_paragraphs = self._build_paragraphs(contexts)
+            max_attempts = 3
+            prev_rejections = []  # Track rejected sentences to avoid repeats
 
-                    desc = data.get("description", "").strip()
-                    section = data.get("section", "").strip()
-                    sentiment = data.get("sentiment", "中性").strip()
-                    citation_key = data.get("citation_key", "").strip()
+            for attempt in range(max_attempts):
+                # ── Agent 1: Extractor ──
+                extract_prompt = prompt_loader.render(
+                    "citation_extract",
+                    citing_title=citing_title,
+                    target_title=target_title,
+                    parsed_paragraphs=parsed_paragraphs,
+                )
+                # On retry, append rejection history so extractor avoids same mistakes
+                if prev_rejections:
+                    reject_list = "\n".join(f"- {r}" for r in prev_rejections)
+                    extract_prompt += (
+                        f"\n\n【注意】以下句子已被审查员否决，请勿再次输出：\n{reject_list}"
+                    )
 
-                    # Validate: description must not be a reference entry (author list + year + journal)
-                    if desc and self._looks_like_ref_entry(desc):
-                        return "未在已解析文本中找到相关引用描述"
+                resp1 = await client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": extract_prompt}],
+                    temperature=0.1 + attempt * 0.1,  # Slightly raise temp on retry
+                )
+                extract_data = self._parse_json(resp1.choices[0].message.content or "")
 
-                    if not desc:
-                        return "未在已解析文本中找到相关引用描述"
+                if not extract_data or not extract_data.get("found", False):
+                    return "未在PDF中找到相关引用描述"
 
-                    # Build clean output
-                    result_parts = []
-                    if section and section not in ("References", "参考文献"):
-                        result_parts.append(f"[{section}]")
-                    result_parts.append(desc)
-                    if sentiment == "正面":
-                        result_parts.append("【正面引用】")
-                    elif sentiment == "负面":
-                        result_parts.append("【负面引用】")
-                    # 中性 = no tag (default)
+                sentence = (extract_data.get("sentence") or "").strip()
+                citation_key = (extract_data.get("citation_key") or "").strip()
+                section = (extract_data.get("section") or "").strip()
+                ref_entry = (extract_data.get("ref_entry") or "").strip()
 
-                    return " ".join(result_parts)
-            except (json.JSONDecodeError, ValueError):
-                pass
+                if not sentence:
+                    return "未在PDF中找到相关引用描述"
+                if self._looks_like_ref_entry(sentence):
+                    prev_rejections.append(sentence[:80])
+                    continue  # Rule-based reject, retry
 
-            return text
+                # ── Agent 2: Reviewer ──
+                review_prompt = prompt_loader.render(
+                    "citation_review",
+                    citing_title=citing_title,
+                    target_title=target_title,
+                    citation_key=citation_key,
+                    ref_entry=ref_entry or "(未提供)",
+                    section=section,
+                    sentence=sentence,
+                    parsed_paragraphs=parsed_paragraphs,
+                )
+                resp2 = await client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": review_prompt}],
+                    temperature=0.0,
+                )
+                review_data = self._parse_json(resp2.choices[0].message.content or "")
+
+                if not review_data:
+                    # Can't parse review — accept extraction as-is
+                    return self._format_output(section, sentence, "中性")
+
+                verdict = (review_data.get("verdict") or "").strip().lower()
+
+                if "accept" in verdict:
+                    sentiment = (review_data.get("sentiment") or "中性").strip()
+                    return self._format_output(section, sentence, sentiment)
+                else:
+                    # Rejected — record and retry
+                    reason = review_data.get("reason", "")
+                    prev_rejections.append(sentence[:80])
+                    if attempt < max_attempts - 1:
+                        ctx.log(f"    ↻ 审查否决 (第{attempt+1}次): {reason[:40]}")
+
+            # All attempts rejected
+            return "未在PDF中找到相关引用描述"
+
         except Exception as e:
             ctx.log(f"  ⚠ LLM提取失败: {e}")
             return "LLM提取失败"
+
+    @staticmethod
+    def _format_output(section: str, description: str, sentiment: str) -> str:
+        """Format final output string."""
+        parts = []
+        if section and section not in ("References", "参考文献", "Bibliography"):
+            parts.append(f"[{section}]")
+        parts.append(description)
+        if sentiment == "正面":
+            parts.append("【正面引用】")
+        elif sentiment == "负面":
+            parts.append("【负面引用】")
+        return " ".join(parts)
 
     @staticmethod
     def _looks_like_ref_entry(text: str) -> bool:

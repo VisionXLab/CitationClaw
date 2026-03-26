@@ -1785,16 +1785,25 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
                 desc_btn = f'<button class="desc-btn" onclick="toggleDesc(\'desc_{idx}\')">{lbl} ▾</button>'
                 desc_row = f"""
         <tr id="desc_{idx}" class="desc-row" style="display:none">
-          <td colspan="7"><div class="md-content">{safe_merged}</div></td>
+          <td colspan="8"><div class="md-content">{safe_merged}</div></td>
         </tr>"""
             else:
                 desc_btn = ""
                 desc_row = ""
 
+            # Institution with Google search link
+            inst_val = _esc((s.get('institution') or '').strip())
+            if inst_val and inst_val not in ('nan', 'None', '未知', '未知机构'):
+                inst_search = f'https://www.google.com/search?q={s["institution"].replace(" ", "+")}'
+                inst_html = f'<a href="{inst_search}" target="_blank" rel="noopener" style="color:var(--text-body);text-decoration:none;border-bottom:1px dashed var(--border2);font-size:11.5px">{inst_val[:35]}{"…" if len(inst_val) > 35 else ""}</a>'
+            else:
+                inst_html = '<span style="color:var(--text-light);font-size:11px">—</span>'
+
             scholar_rows += f"""
         <tr>
           <td style="color:var(--text-light);font-size:11px">{str(idx).zfill(2)}</td>
           <td class="sname">{name_html}</td>
+          <td>{inst_html}</td>
           <td>{self._country_badge(country_val)}</td>
           <td><span class="badge {bc}">{bl}</span></td>
           <td class="stitle">{_esc(s['title'][:90])}</td>
@@ -2487,7 +2496,7 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
   <div class="card-title"><div class="card-title-dot"></div>引用论文中出现的权威学者详细信息（AI搜索生成，已自动去重合并同一学者，仅供参考）</div>
   <div style="overflow-x:auto">
     <table class="scholar-table">
-      <thead><tr><th>#</th><th>学者</th><th>国家/地区</th><th>层级</th><th>头衔 / 荣誉</th><th>施引论文</th><th>引用描述</th></tr></thead>
+      <thead><tr><th>#</th><th>学者</th><th>机构</th><th>国家/地区</th><th>层级</th><th>头衔 / 荣誉</th><th>施引论文</th><th>引用描述</th></tr></thead>
       <tbody>{scholar_rows}</tbody>
     </table>
   </div>

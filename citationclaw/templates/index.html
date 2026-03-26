@@ -154,7 +154,7 @@
       <div class="col-md-7">
         <input type="text" id="idx-openai-key" class="form-control" placeholder="V-API Key: sk-..." autocomplete="off">
       </div>
-      <div class="col-md-5" style="display:flex;align-items:center">
+      <div class="col-md-4" style="display:flex;align-items:center">
         <select id="idx-openai-model" class="form-select" style="font-size:12.5px">
           <option value="gemini-3-flash-preview-search">gemini-3-flash-preview-search (default)</option>
           <option value="gemini-3.1-pro-preview-search">gemini-3.1-pro-preview-search</option>
@@ -163,7 +163,13 @@
           <option value="deepseek-v3-search">deepseek-v3-search</option>
         </select>
       </div>
+      <div class="col-md-1" style="display:flex;align-items:center;justify-content:center">
+        <button id="btn-pretest-search" class="btn-pretest" onclick="pretestSearchLLM()" title="测试 Search LLM 是否可用">
+          <i class="bi bi-play-circle"></i>
+        </button>
+      </div>
     </div>
+    <div id="pretest-search-result" class="pretest-result" style="display:none"></div>
   </div>
 
   <!-- ③ 轻量模型 -->
@@ -178,16 +184,22 @@
         <label class="form-label">Base URL</label>
         <input type="text" id="idx-openai-url" class="form-control" placeholder="https://api.gpt.ge/v1/">
       </div>
-      <div class="col-md-4">
+      <div class="col-md-3">
         <label class="form-label">API Key</label>
-        <input type="text" id="idx-light-api-key" class="form-control" placeholder="留空则复用上方 V-API Key" autocomplete="off">
+        <input type="text" id="idx-light-api-key" class="form-control" placeholder="留空则复用 V-API Key" autocomplete="off">
       </div>
       <div class="col-md-4">
         <label class="form-label">模型名称</label>
         <input type="text" id="idx-dashboard-model" class="form-control"
                placeholder="gemini-3-flash-preview-nothinking">
       </div>
+      <div class="col-md-1" style="display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px">
+        <button id="btn-pretest-light" class="btn-pretest" onclick="pretestLightModel()" title="测试轻量模型是否可用">
+          <i class="bi bi-play-circle"></i>
+        </button>
+      </div>
     </div>
+    <div id="pretest-light-result" class="pretest-result" style="display:none"></div>
     <div style="display:flex;align-items:center;gap:6px;margin-top:10px">
       <span style="font-size:12px;color:var(--light);flex-shrink:0">快捷填充:</span>
       <div id="provider-presets" style="display:flex;gap:5px;flex-wrap:wrap">

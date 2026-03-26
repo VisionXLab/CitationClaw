@@ -228,6 +228,15 @@ class TaskExecutor:
                 elif valid_authors:
                     metadata["authors"] = valid_authors
 
+            # Cap unreasonable author counts (e.g. arXiv consortium papers)
+            _MAX_AUTHORS = 100
+            if metadata.get("authors") and len(metadata["authors"]) > _MAX_AUTHORS:
+                self.log_manager.info(
+                    f"  ⚠ {paper['paper_title'][:40]}... 有 {len(metadata['authors'])} 位作者，"
+                    f"截断为前 {_MAX_AUTHORS} 位"
+                )
+                metadata["authors"] = metadata["authors"][:_MAX_AUTHORS]
+
             src_tag = ",".join(metadata.get("sources", [])) or "scholar"
             n_authors = len(metadata.get("authors", []))
             self.log_manager.info(
@@ -794,11 +803,8 @@ class TaskExecutor:
             f"（缓存命中 {cache_final['hits']} / 新查询 {cache_final['misses']}）"
         )
 
-        # ── Scholar verification: LLM validates each identified scholar ──
-        if paper_scholar_map and config.openai_api_key:
-            paper_scholar_map = await self._verify_scholars(
-                paper_scholar_map, config
-            )
+        # Scholar verification is now integrated into the search prompt
+        # (self-verification step 5 in SCHOLAR_SEARCH_PROMPT)
 
         # ── Build merged JSONL with scholar data ──
         merged_file = result_dir / "merged_authors.jsonl"
@@ -833,8 +839,8 @@ class TaskExecutor:
                 )
                 f.write(_json.dumps(record, ensure_ascii=False) + "\n")
 
-        # ── Affiliation enrichment: fill 未知机构 via lightweight LLM ──
-        await self._enrich_unknown_affiliations(merged_file, config)
+        # ── Affiliation enrichment: fill 未知机构 for top-tier scholars only ──
+        await self._enrich_unknown_affiliations(merged_file, config, paper_scholar_map)
 
         # ── Data validation: fix country labels & detect non-country content ──
         self.log_manager.info("[数据校验] 修正国家标签...")
@@ -856,107 +862,22 @@ class TaskExecutor:
 
         return merged_file, excel_file, json_file, pdf_paths
 
-    async def _verify_scholars(self, paper_scholar_map: dict, config) -> dict:
-        """Verify each identified scholar's info via lightweight LLM.
-
-        Checks: Is the name + institution + honor/title combination real?
-        Removes scholars that LLM determines are incorrect.
-        """
-        # Collect all unique scholars across all papers
-        all_scholars = {}  # name → scholar dict
-        for title_key, scholars in paper_scholar_map.items():
-            for s in scholars:
-                name = s.get("name", "")
-                if name and name not in all_scholars:
-                    all_scholars[name] = s
-
-        if not all_scholars:
-            return paper_scholar_map
-
-        self.log_manager.info(
-            f"[学者校验] 用轻量级 LLM 校验 {len(all_scholars)} 位知名学者的信息真实性..."
-        )
-
-        llm_model = getattr(config, 'dashboard_model', '') or config.openai_model
-        try:
-            from openai import AsyncOpenAI
-            from citationclaw.core.http_utils import make_async_client
-            client = AsyncOpenAI(
-                api_key=config.openai_api_key,
-                base_url=(config.openai_base_url or "").rstrip("/") + "/",
-                http_client=make_async_client(timeout=60.0),
-            )
-
-            # Batch: max 15 scholars per LLM call
-            scholar_list = list(all_scholars.values())
-            removed_names = set()
-
-            for batch_start in range(0, len(scholar_list), 15):
-                batch = scholar_list[batch_start:batch_start + 15]
-                items = []
-                for s in batch:
-                    honors = ", ".join(s.get("honors", [])) if isinstance(s.get("honors"), list) else s.get("honors", "")
-                    items.append(
-                        f"- {s.get('name', '')} | 机构: {s.get('affiliation', '')} | "
-                        f"头衔: {honors or s.get('position', '')} | "
-                        f"层级: {s.get('tier', '')}"
-                    )
-
-                prompt = (
-                    "以下是通过搜索 LLM 识别出的知名学者列表。请逐一校验每位学者的信息真实性。\n\n"
-                    "【校验规则】：\n"
-                    "1. 姓名与机构是否匹配？（该学者是否确实在该机构任职/曾任职？）\n"
-                    "2. 头衔/荣誉是否真实？（是否确实是 IEEE Fellow / 院士 / 杰青等？）\n"
-                    "3. 如果你不确定某条信息，标为「存疑」\n"
-                    "4. 如果明显错误（如张冠李戴、编造头衔），标为「错误」\n\n"
-                    "每行输出: 正确 / 存疑 / 错误\n\n"
-                    + "\n".join(items)
-                )
-
-                try:
-                    resp = await client.chat.completions.create(
-                        model=llm_model,
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=0.0,
-                        extra_body={"web_search_options": {}},
-                    )
-                    answers = resp.choices[0].message.content.strip().split('\n')
-
-                    for j, s in enumerate(batch):
-                        if j >= len(answers):
-                            break
-                        verdict = answers[j].strip().lower()
-                        name = s.get("name", "")
-                        if "错误" in verdict or "error" in verdict:
-                            removed_names.add(name)
-                            self.log_manager.info(f"    ✗ 移除: {name} (信息不真实)")
-                        elif "存疑" in verdict or "uncertain" in verdict:
-                            self.log_manager.info(f"    ? 存疑: {name} (保留但标记)")
-                        # "正确" → keep as-is
-                except Exception as e:
-                    self.log_manager.info(f"    ⚠ 校验批次失败: {str(e)[:50]}")
-
-            # Remove invalid scholars from paper_scholar_map
-            if removed_names:
-                for title_key in paper_scholar_map:
-                    paper_scholar_map[title_key] = [
-                        s for s in paper_scholar_map[title_key]
-                        if s.get("name", "") not in removed_names
-                    ]
-                self.log_manager.info(
-                    f"  → 移除 {len(removed_names)} 位信息不真实的学者"
-                )
-            else:
-                self.log_manager.info("  → 全部通过校验")
-
-        except Exception as e:
-            self.log_manager.info(f"  ⚠ 学者校验失败: {str(e)[:50]}")
-
-        return paper_scholar_map
-
-    async def _enrich_unknown_affiliations(self, merged_file: Path, config):
-        """Use lightweight LLM to fill 未知机构 for authors missing affiliation data."""
+    async def _enrich_unknown_affiliations(self, merged_file: Path, config,
+                                             paper_scholar_map: dict = None):
+        """Use Search LLM to fill 未知机构 — only for identified top-tier scholars."""
         if not config.openai_api_key:
+            return
+
+        # Collect scholar names from paper_scholar_map (Phase 3 results)
+        scholar_names = set()
+        if paper_scholar_map:
+            for scholars in paper_scholar_map.values():
+                for s in scholars:
+                    name = s.get("name", "")
+                    if name:
+                        scholar_names.add(name.strip().lower())
+
+        if not scholar_names:
             return
 
         lines = []
@@ -966,34 +887,36 @@ class TaskExecutor:
                 if line:
                     lines.append(_json.loads(line))
 
-        # Collect papers with 未知机构
-        papers_to_fix = []  # (line_idx, rec_key, paper_title, author_names)
+        # Only search scholars with missing affiliations
+        author_paper_map = {}  # author_name_lower → (display_name, paper_title)
+        papers_with_unknown = []  # (line_idx, rec_key) for write-back
+
         for i, record_wrapper in enumerate(lines):
             for rec_key, rec in record_wrapper.items():
                 affil = str(rec.get("Authors_Affiliation", "") or "")
                 if "未知机构" not in affil and "未知" not in affil:
                     continue
                 title = rec.get("Paper_Title", "")
-                # Extract author names with unknown affiliations
                 affil_lines = [l.strip() for l in affil.split('\n') if l.strip()]
-                unknown_authors = []
                 for j in range(0, len(affil_lines) - 1, 2):
                     name = affil_lines[j]
                     inst = affil_lines[j + 1] if j + 1 < len(affil_lines) else ""
                     if "未知" in inst or not inst.strip():
-                        unknown_authors.append(name)
-                if unknown_authors:
-                    papers_to_fix.append((i, rec_key, title, unknown_authors))
+                        nl = name.strip().lower()
+                        if nl in scholar_names and nl not in author_paper_map:
+                            author_paper_map[nl] = (name, title)
+                        if (i, rec_key) not in papers_with_unknown:
+                            papers_with_unknown.append((i, rec_key))
 
-        if not papers_to_fix:
+        if not author_paper_map:
+            self.log_manager.info("[机构补全] 知名学者机构均已知，跳过")
             return
 
         self.log_manager.info(
-            f"[机构补全] {len(papers_to_fix)} 篇论文含未知机构作者，"
-            f"使用轻量级 LLM 批量查询..."
+            f"[机构补全] {len(author_paper_map)} 位知名学者机构未知，"
+            f"使用 Search LLM 查询..."
         )
 
-        llm_model = getattr(config, 'dashboard_model', '') or config.openai_model
         try:
             from openai import AsyncOpenAI
             from citationclaw.core.http_utils import make_async_client
@@ -1003,67 +926,65 @@ class TaskExecutor:
                 http_client=make_async_client(timeout=60.0),
             )
 
-            # Process in batches of 5 papers (to avoid prompt too long)
-            fixed_total = 0
-            for batch_start in range(0, len(papers_to_fix), 5):
-                batch = papers_to_fix[batch_start:batch_start + 5]
-                items = []
-                for _, _, title, authors in batch:
-                    author_list = ", ".join(authors[:8])
-                    items.append(f"论文: 《{title[:60]}》\n作者: {author_list}")
+            affil_results = {}  # author_name_lower → institution
+            sem = asyncio.Semaphore(3)
 
+            async def _search_one(name_lower, display_name, paper_title):
                 prompt = (
-                    "以下论文的部分作者机构信息缺失。"
-                    "请根据论文标题和作者姓名，推断每位作者最可能的单位/机构。\n"
-                    "输出格式：每位作者一行，格式为 \"作者名 | 机构全称\"。"
-                    "如无法确定请输出 \"作者名 | 未知\"。\n\n"
-                    + "\n\n".join(items)
+                    f"请搜索学者 {display_name} 的当前任职机构。"
+                    f"该学者是论文《{paper_title[:50]}》的作者之一。\n"
+                    f"只需回答机构全称（如 Tsinghua University），无法确定则回答「未知」。"
                 )
-
                 try:
-                    resp = await client.chat.completions.create(
-                        model=llm_model,
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=0.1,
-                        extra_body={"web_search_options": {}},
-                    )
-                    answer = resp.choices[0].message.content.strip()
+                    async with sem:
+                        resp = await asyncio.wait_for(
+                            client.chat.completions.create(
+                                model=config.openai_model,
+                                messages=[{"role": "user", "content": prompt}],
+                                temperature=0.0,
+                                extra_body={"web_search_options": {}},
+                            ),
+                            timeout=45,
+                        )
+                    answer = (resp.choices[0].message.content or "").strip()
+                    # Clean up: remove quotes, markdown, etc.
+                    answer = answer.strip('"\'`').strip()
+                    if answer and "未知" not in answer and len(answer) < 100:
+                        affil_results[name_lower] = answer
+                        self.log_manager.info(f"    ✓ {display_name} → {answer}")
+                    else:
+                        self.log_manager.info(f"    - {display_name} → 未知")
+                except Exception:
+                    pass
 
-                    # Parse LLM response and update records
-                    affil_map = {}  # author_name_lower → institution
-                    for line in answer.split('\n'):
-                        if '|' in line:
-                            parts = line.split('|', 1)
-                            name = parts[0].strip().strip('-').strip()
-                            inst = parts[1].strip()
-                            if name and inst and inst != "未知":
-                                affil_map[name.lower()] = inst
+            tasks = [
+                _search_one(nl, info[0], info[1])
+                for nl, info in author_paper_map.items()
+            ]
+            await asyncio.gather(*tasks)
 
-                    # Apply to records
-                    for line_idx, rec_key, _, _ in batch:
-                        rec = lines[line_idx][rec_key]
-                        affil_text = str(rec.get("Authors_Affiliation", ""))
-                        affil_lines = affil_text.split('\n')
-                        changed = False
-                        for j in range(0, len(affil_lines) - 1, 2):
-                            name = affil_lines[j].strip()
-                            inst = affil_lines[j + 1].strip() if j + 1 < len(affil_lines) else ""
-                            if "未知" in inst or not inst:
-                                new_inst = affil_map.get(name.lower())
-                                if new_inst:
-                                    affil_lines[j + 1] = new_inst
-                                    changed = True
-                                    fixed_total += 1
-                        if changed:
-                            rec["Authors_Affiliation"] = '\n'.join(affil_lines)
-                            # Also update First_Author_Institution if it was empty
-                            if not rec.get("First_Author_Institution") and len(affil_lines) >= 2:
-                                first_inst = affil_lines[1].strip()
-                                if first_inst and "未知" not in first_inst:
-                                    rec["First_Author_Institution"] = first_inst
-
-                except Exception as e:
-                    self.log_manager.info(f"  ⚠ LLM机构补全批次失败: {str(e)[:50]}")
+            # Apply results to records
+            fixed_total = 0
+            for line_idx, rec_key in papers_with_unknown:
+                rec = lines[line_idx][rec_key]
+                affil_text = str(rec.get("Authors_Affiliation", ""))
+                affil_lines = affil_text.split('\n')
+                changed = False
+                for j in range(0, len(affil_lines) - 1, 2):
+                    name = affil_lines[j].strip()
+                    inst = affil_lines[j + 1].strip() if j + 1 < len(affil_lines) else ""
+                    if "未知" in inst or not inst:
+                        new_inst = affil_results.get(name.strip().lower())
+                        if new_inst:
+                            affil_lines[j + 1] = new_inst
+                            changed = True
+                            fixed_total += 1
+                if changed:
+                    rec["Authors_Affiliation"] = '\n'.join(affil_lines)
+                    if not rec.get("First_Author_Institution") and len(affil_lines) >= 2:
+                        first_inst = affil_lines[1].strip()
+                        if first_inst and "未知" not in first_inst:
+                            rec["First_Author_Institution"] = first_inst
 
             # Write back
             if fixed_total > 0:

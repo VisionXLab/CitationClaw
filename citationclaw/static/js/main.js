@@ -746,6 +746,78 @@ function initIndexPage() {
     // Expose for global access (used by fetchScholarPapers in index.html)
     window.saveIndexConfig = saveIndexConfig;
 
+    // ─── Pre-test functions ───
+    async function _runPretest(endpoint, params, btnId, resultId) {
+        const btn = document.getElementById(btnId);
+        const box = document.getElementById(resultId);
+        if (!btn || !box) return;
+        btn.disabled = true;
+        btn.classList.add('spinning');
+        box.style.display = 'none';
+        try {
+            const resp = await safeFetch(endpoint, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(params),
+            });
+            const data = await resp.json();
+            box.style.display = 'block';
+            if (data.status === 'success') {
+                box.className = 'pretest-result success';
+                box.textContent = data.message;
+            } else {
+                box.className = 'pretest-result error';
+                box.textContent = data.message || '测试失败';
+            }
+        } catch (e) {
+            box.style.display = 'block';
+            box.className = 'pretest-result error';
+            box.textContent = '请求失败: ' + (e.message || e);
+        } finally {
+            btn.disabled = false;
+            btn.classList.remove('spinning');
+        }
+    }
+
+    window.pretestSearchLLM = function() {
+        const el = id => document.getElementById(id);
+        const key = el('idx-openai-key')?.value?.trim();
+        const model = el('idx-openai-model')?.value?.trim();
+        if (!key) {
+            const box = document.getElementById('pretest-search-result');
+            box.style.display = 'block';
+            box.className = 'pretest-result error';
+            box.textContent = '请先填写 V-API Key';
+            return;
+        }
+        _runPretest('/api/pretest/search_llm', {
+            api_key: key,
+            base_url: 'https://api.gpt.ge/v1/',
+            model: model || 'gemini-3-flash-preview-search',
+        }, 'btn-pretest-search', 'pretest-search-result');
+    };
+
+    window.pretestLightModel = function() {
+        const el = id => document.getElementById(id);
+        const lightKey = el('idx-light-api-key')?.value?.trim();
+        const vapiKey = el('idx-openai-key')?.value?.trim();
+        const key = lightKey || vapiKey;
+        const baseUrl = el('idx-openai-url')?.value?.trim() || 'https://api.gpt.ge/v1/';
+        const model = el('idx-dashboard-model')?.value?.trim() || 'gemini-3-flash-preview-nothinking';
+        if (!key) {
+            const box = document.getElementById('pretest-light-result');
+            box.style.display = 'block';
+            box.className = 'pretest-result error';
+            box.textContent = '请先填写 API Key（轻量模型或 V-API）';
+            return;
+        }
+        _runPretest('/api/pretest/light_model', {
+            api_key: key,
+            base_url: baseUrl,
+            model: model,
+        }, 'btn-pretest-light', 'pretest-light-result');
+    };
+
     // ─── Service Tier Preset Logic ───
     const tierSelect = document.getElementById('idx-service-tier');
     let PRESETS = {};
