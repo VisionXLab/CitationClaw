@@ -180,6 +180,12 @@ Useful links:
   <img src="docs/assets/group.jpg" width="200" alt="User Group QR">
 </div>
 
+- If the group is full, add the personal WeChat below and we will invite you:
+
+<div align="center">
+  <img src="docs/assets/personal_wc.jpg" width="200" alt="Personal WeChat QR">
+</div>
+
 ## ⭐ Star History
 
 <div align="center">
