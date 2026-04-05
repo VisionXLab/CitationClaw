@@ -16,10 +16,11 @@ Download priority (tried in order):
   9.  arXiv PDF
   10. GS paper_link + smart transform (CVF/OpenReview/MDPI/IEEE/Springer/ACL)
   11. ScraperAPI publisher download (IEEE/Springer/Elsevier — anti-bot bypass)
-  12. LLM search for alternative PDF (preprints, author pages, repos)
-  13. curl + socks5 + Chrome Cookie (legacy fallback)
-  14. DOI redirect
-  15. ScraperAPI + LLM smart fallback (last resort for unknown pages)
+  12. CDP browser session (IEEE/Elsevier — real browser with auth)
+  13. LLM search for alternative PDF (preprints, author pages, repos)
+  14. curl + socks5 + Chrome Cookie (legacy fallback)
+  15. DOI redirect
+  16. ScraperAPI + LLM smart fallback (last resort for unknown pages)
 """
 import hashlib
 import re
@@ -69,6 +70,8 @@ _SOURCE_LABELS = {
     "scraper_springer": "ScraperAPI+Springer",
     "scraper_elsevier": "ScraperAPI+Elsevier",
     "scraper_publisher": "ScraperAPI+出版商",
+    "cdp_ieee": "CDP-IEEE",
+    "cdp_elsevier": "CDP-Elsevier",
 }
 
 # ── Publisher detection helpers ───────────────────────────────────────
@@ -405,13 +408,185 @@ def _pdf_title_matches(pdf_data: bytes, expected_title: str, threshold: float = 
         return True  # Any error — accept the PDF (don't block downloads)
 
 
+# ── CDP (Chrome DevTools Protocol) helpers ────────────────────────────
+# Download PDFs via a live, authenticated browser session.
+# Requires: websocket-client (pip install websocket-client)
+#         + browser with --remote-debugging-port.
+# Graceful degradation: if websocket-client not installed, CDP is skipped.
+
+try:
+    import websocket as _websocket_mod
+except ImportError:
+    _websocket_mod = None
+
+# ScienceDirect pdfDownload metadata regex
+_SD_PDF_DOWNLOAD_RE = re.compile(
+    r'"pdfDownload":\{"isPdfFullText":(?:true|false),'
+    r'"urlMetadata":\{"queryParams":\{"md5":"([^"]+)","pid":"([^"]+)"\},'
+    r'"pii":"([^"]+)","pdfExtension":"([^"]+)","path":"([^"]+)"\}\}'
+)
+
+
+def _cdp_available() -> bool:
+    return _websocket_mod is not None
+
+
+_cdp_browser_launched = False  # Only auto-launch once per process
+
+
+def _cdp_ensure_browser(debug_port: int) -> bool:
+    """Ensure a debug browser is running. Auto-launch if needed (once per process)."""
+    global _cdp_browser_launched
+    if not _cdp_available():
+        return False
+    if _cdp_check_connection(debug_port):
+        return True
+    if _cdp_browser_launched:
+        return False  # Already tried, don't retry
+
+    # Auto-launch Edge or Chrome with remote debugging
+    _cdp_browser_launched = True
+    import platform
+    if platform.system() == "Windows":
+        browser_paths = [
+            "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+            "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
+            "C:/Program Files/Google/Chrome/Application/chrome.exe",
+            "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
+        ]
+    elif platform.system() == "Darwin":
+        browser_paths = [
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        ]
+    else:
+        browser_paths = [
+            "/usr/bin/google-chrome", "/usr/bin/chromium-browser",
+            "/usr/bin/microsoft-edge",
+        ]
+
+    binary = None
+    for p in browser_paths:
+        if Path(p).exists():
+            binary = p
+            break
+    if not binary:
+        return False
+
+    profile_dir = Path("runtime/debug_browser_profile")
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.Popen([
+            binary,
+            f"--remote-debugging-port={debug_port}",
+            f"--user-data-dir={profile_dir.resolve()}",
+            "--profile-directory=Default",
+            "--new-window", "about:blank",
+        ])
+    except Exception:
+        return False
+
+    import time as _t
+    for _ in range(10):
+        _t.sleep(1)
+        if _cdp_check_connection(debug_port):
+            return True
+    return False
+
+
+def _cdp_check_connection(debug_port: int, timeout: int = 3) -> bool:
+    try:
+        from urllib.request import Request, urlopen
+        req = Request(f"http://127.0.0.1:{debug_port}/json/version")
+        with urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return "Browser" in data or "webSocketDebuggerUrl" in data
+    except Exception:
+        return False
+
+
+def _cdp_list_tabs(debug_port: int) -> list:
+    try:
+        from urllib.request import Request, urlopen
+        raw = urlopen(Request(f"http://127.0.0.1:{debug_port}/json/list"), timeout=10).read().decode()
+        return json.loads(raw)
+    except Exception:
+        return []
+
+
+def _cdp_open_page(debug_port: int, url: str) -> dict:
+    from urllib.request import Request, urlopen
+    raw = urlopen(
+        Request(f"http://127.0.0.1:{debug_port}/json/new?{quote(url, safe=':/?&=%')}", method="PUT"),
+        timeout=20,
+    ).read().decode()
+    return json.loads(raw)
+
+
+def _cdp_close_page(debug_port: int, page_id: str):
+    try:
+        from urllib.request import Request, urlopen
+        urlopen(Request(f"http://127.0.0.1:{debug_port}/json/close/{page_id}"), timeout=5)
+    except Exception:
+        pass
+
+
+def _cdp_call(ws_url: str, method: str, params: dict = None, msg_id: int = 1, timeout: int = 180) -> dict:
+    ws = _websocket_mod.create_connection(ws_url, timeout=timeout, suppress_origin=True)
+    try:
+        ws.send(json.dumps({"id": msg_id, "method": method, "params": params or {}}))
+        while True:
+            msg = json.loads(ws.recv())
+            if msg.get("id") == msg_id:
+                return msg
+    finally:
+        ws.close()
+
+
+def _cdp_evaluate(ws_url: str, expression: str, await_promise: bool = False, msg_id: int = 1):
+    msg = _cdp_call(ws_url, "Runtime.evaluate", {
+        "expression": expression, "returnByValue": True, "awaitPromise": await_promise,
+    }, msg_id=msg_id)
+    return msg.get("result", {}).get("result", {}).get("value")
+
+
+def _cdp_fetch_pdf_in_context(ws_url: str, pdf_url: str) -> Optional[bytes]:
+    """Execute fetch() inside a page context to download a PDF. Returns bytes or None."""
+    import base64
+    _cdp_evaluate(ws_url, f'window.__pdfUrl = {json.dumps(pdf_url)};', msg_id=40)
+    js = '''
+fetch(window.__pdfUrl, {credentials: "include"})
+  .then(r => { if (!r.ok) return "ERR:HTTP_" + r.status; return r.arrayBuffer(); })
+  .then(buf => {
+    if (typeof buf === "string") return buf;
+    const bytes = new Uint8Array(buf);
+    const chunk = 0x8000;
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+  })
+  .catch(e => "ERR:" + e.message)
+'''
+    try:
+        value = _cdp_evaluate(ws_url, js.strip(), await_promise=True, msg_id=50)
+        if not value or (isinstance(value, str) and value.startswith("ERR:")):
+            return None
+        data = base64.b64decode(value)
+        return data if data[:5] == b"%PDF-" else None
+    except Exception:
+        return None
+
+
 # ═══════════════════════════════════════════════════════════════════════
 class PDFDownloader:
     """Smart multi-source PDF downloader with caching."""
 
     def __init__(self, cache_dir: Optional[Path] = None, email: Optional[str] = None,
                  scraper_api_keys: Optional[list] = None,
-                 llm_api_key: str = "", llm_base_url: str = "", llm_model: str = ""):
+                 llm_api_key: str = "", llm_base_url: str = "", llm_model: str = "",
+                 cdp_debug_port: int = 0):
         self._cache_dir = cache_dir or DEFAULT_CACHE_DIR
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._email = email or "citationclaw@research.tool"
@@ -419,6 +594,7 @@ class PDFDownloader:
         self._llm_key = llm_api_key
         self._llm_base_url = llm_base_url
         self._llm_model = llm_model
+        self._cdp_debug_port = cdp_debug_port
 
     @staticmethod
     def _make_client(timeout: float = 30.0):
@@ -1107,6 +1283,228 @@ class PDFDownloader:
                 log(f"    [LLM搜索] 异常: {str(e)[:60]}")
             return None
 
+    # ── CDP: IEEE Xplore ────────────────────────────────────────────────
+    async def _try_cdp_ieee(self, paper: dict, log=None) -> Optional[bytes]:
+        """Download IEEE paper via CDP browser session.
+
+        Reuses an existing authenticated IEEE tab, or opens stamp.jsp and
+        waits for user to complete authentication if needed.
+        Uses in-page fetch() to download getPDF.jsp with session cookies.
+        """
+        if not _cdp_ensure_browser(self._cdp_debug_port):
+            return None
+
+        link = paper.get("paper_link", "")
+        m = re.search(r'/document/(\d+)', link)
+        if not m:
+            m = re.search(r'arnumber=(\d+)', link)
+        if not m:
+            return None
+        arnumber = m.group(1)
+
+        port = self._cdp_debug_port
+        get_pdf_url = f"https://ieeexplore.ieee.org/stampPDF/getPDF.jsp?tp=&arnumber={arnumber}&ref="
+
+        def _sync():
+            import time as _t
+
+            # Strategy 1: reuse existing IEEE tab
+            for t in _cdp_list_tabs(port):
+                if t.get("type") == "page" and "ieeexplore.ieee.org" in t.get("url", ""):
+                    ws = t.get("webSocketDebuggerUrl", "")
+                    if ws:
+                        data = _cdp_fetch_pdf_in_context(ws, get_pdf_url)
+                        if data:
+                            return data
+                    break
+
+            # Strategy 2: open stamp page, handle auth
+            stamp_url = f"https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber={arnumber}"
+            page = _cdp_open_page(port, stamp_url)
+            ws_url = page.get("webSocketDebuggerUrl", "")
+            if not ws_url:
+                return None
+
+            _t.sleep(8)
+
+            current = _cdp_evaluate(ws_url, "window.location.href", msg_id=5)
+            if current and "login" in str(current).lower():
+                if log:
+                    log("  [CDP-IEEE] 需要登录 — 请在浏览器窗口完成认证")
+                deadline = _t.time() + 120
+                while _t.time() < deadline:
+                    _t.sleep(3)
+                    try:
+                        url_now = _cdp_evaluate(ws_url, "window.location.href", msg_id=50)
+                    except Exception:
+                        _t.sleep(2)
+                        for tab in _cdp_list_tabs(port):
+                            if (tab.get("type") == "page"
+                                    and "ieeexplore.ieee.org" in tab.get("url", "")
+                                    and "login" not in tab.get("url", "").lower()):
+                                ws_url = tab.get("webSocketDebuggerUrl", ws_url)
+                                url_now = tab.get("url", "")
+                                break
+                        else:
+                            continue
+                    if url_now and "login" not in str(url_now).lower() and "ieeexplore" in str(url_now).lower():
+                        break
+                else:
+                    return None
+
+                _cdp_call(ws_url, "Page.navigate", {"url": stamp_url}, msg_id=6)
+                _t.sleep(8)
+
+            data = _cdp_fetch_pdf_in_context(ws_url, get_pdf_url)
+            try:
+                _cdp_call(ws_url, "Page.navigate", {"url": "about:blank"}, msg_id=99)
+            except Exception:
+                pass
+            return data
+
+        try:
+            return await asyncio.to_thread(_sync)
+        except Exception:
+            return None
+
+    # ── CDP: Elsevier / ScienceDirect ─────────────────────────────────
+    async def _try_cdp_elsevier(self, paper: dict, log=None) -> Optional[bytes]:
+        """Download Elsevier paper via CDP browser session.
+
+        Opens article page, extracts pdfDownload metadata from rendered HTML,
+        navigates to pdfft URL. User passes Cloudflare Turnstile if prompted.
+        Extracts PDF via Edge/Chrome PDF viewer or in-page fetch().
+        """
+        if not _cdp_ensure_browser(self._cdp_debug_port):
+            return None
+
+        link = paper.get("paper_link", "")
+        m = re.search(r'/pii/([A-Z0-9]+)', link)
+        if not m:
+            return None
+        target_pii = m.group(1)
+
+        port = self._cdp_debug_port
+        article_url = link or f"https://www.sciencedirect.com/science/article/pii/{target_pii}"
+
+        def _sync():
+            import time as _t
+
+            # Get or create a ScienceDirect tab
+            ws_url = None
+            for t in _cdp_list_tabs(port):
+                if t.get("type") == "page" and "sciencedirect.com" in t.get("url", ""):
+                    ws_url = t.get("webSocketDebuggerUrl", "")
+                    break
+
+            if ws_url:
+                try:
+                    _cdp_call(ws_url, "Page.navigate", {"url": article_url}, msg_id=1)
+                except Exception:
+                    ws_url = None
+
+            if not ws_url:
+                page = _cdp_open_page(port, article_url)
+                ws_url = page.get("webSocketDebuggerUrl", "")
+                if not ws_url:
+                    return None
+
+            _t.sleep(10)
+
+            # Extract pdfDownload metadata (with Cloudflare retry, up to 60s)
+            pdfft_url = None
+            deadline_meta = _t.time() + 60
+            attempt = 0
+            while _t.time() < deadline_meta:
+                attempt += 1
+                html = _cdp_evaluate(ws_url, "document.documentElement.outerHTML", msg_id=10)
+                if not html:
+                    _t.sleep(3)
+                    continue
+
+                # Cloudflare challenge page?
+                if "challenge-platform" in html or "Just a moment" in html or len(html) < 5000:
+                    if log and attempt <= 3:
+                        log("  [CDP-Elsevier] Cloudflare 验证 — 请在浏览器中完成验证")
+                    _t.sleep(5)
+                    continue
+
+                mm = _SD_PDF_DOWNLOAD_RE.search(html)
+                if not mm:
+                    if _t.time() + 10 < deadline_meta:
+                        _t.sleep(5)
+                        continue
+                    return None
+
+                md5, pid, found_pii, ext, path = mm.groups()
+                if found_pii != target_pii:
+                    _cdp_call(ws_url, "Page.navigate", {"url": article_url}, msg_id=11)
+                    _t.sleep(10)
+                    continue
+
+                pdfft_url = f"https://www.sciencedirect.com/{path}/{found_pii}{ext}?md5={md5}&pid={pid}"
+                break
+
+            if not pdfft_url:
+                return None
+
+            # Navigate to pdfft (may trigger Cloudflare Turnstile)
+            if log:
+                log("  [CDP-Elsevier] 导航到 PDF 下载页")
+            _cdp_call(ws_url, "Page.navigate", {"url": pdfft_url}, msg_id=15)
+
+            # Wait for PDF viewer to appear (up to 120s)
+            deadline_pdf = _t.time() + 120
+            last_msg = 0
+            while _t.time() < deadline_pdf:
+                _t.sleep(3)
+                viewer = None
+                pdf_page = None
+                for t in _cdp_list_tabs(port):
+                    # Edge PDF viewer
+                    if t.get("type") == "webview" and "edge_pdf" in t.get("url", ""):
+                        viewer = t
+                    # Chrome/Edge tab with PDF content
+                    if t.get("type") == "page" and "pdf.sciencedirectassets.com" in t.get("url", ""):
+                        pdf_page = t
+
+                if viewer and pdf_page:
+                    try:
+                        orig_url = _cdp_evaluate(
+                            viewer["webSocketDebuggerUrl"],
+                            'document.querySelector("embed").getAttribute("original-url")',
+                            msg_id=30,
+                        )
+                        if orig_url and "pdf" in orig_url.lower():
+                            if (target_pii.upper() in orig_url.upper()
+                                    or target_pii.upper() in pdf_page.get("url", "").upper()):
+                                data = _cdp_fetch_pdf_in_context(pdf_page["webSocketDebuggerUrl"], orig_url)
+                                if data:
+                                    return data
+                    except Exception:
+                        pass
+
+                # Fallback: try fetching pdfft directly in page context
+                if pdf_page:
+                    try:
+                        data = _cdp_fetch_pdf_in_context(pdf_page["webSocketDebuggerUrl"], pdfft_url)
+                        if data:
+                            return data
+                    except Exception:
+                        pass
+
+                now = _t.time()
+                if log and now - last_msg > 15:
+                    log(f"  [CDP-Elsevier] 等待 PDF... ({int(deadline_pdf - now)}s)")
+                    last_msg = now
+
+            return None
+
+        try:
+            return await asyncio.to_thread(_sync)
+        except Exception:
+            return None
+
     # ── Main download method (PaperRadar-style smart download) ────────
     _RETRY_ATTEMPTS = 2      # total attempts = 1 + retries
     _RETRY_DELAY = 8         # seconds between retries
@@ -1317,7 +1715,20 @@ class PDFDownloader:
                 if _ok(data, f"scraper_{_pub_from_doi}"):
                     return cached
 
-        # ── 12. LLM search for alternative PDF (preprints, author pages, repos)
+        # ── 12. CDP browser session (IEEE/Elsevier — real browser with auth)
+        # Uses Chrome DevTools Protocol to download via authenticated browser.
+        # Requires: cdp_debug_port > 0 and websocket-client installed.
+        if self._cdp_debug_port and _cdp_available():
+            if paper_link and "ieeexplore.ieee.org" in paper_link:
+                data = await self._try_cdp_ieee(paper, log=log)
+                if _ok(data, "cdp_ieee"):
+                    return cached
+            if paper_link and ("sciencedirect.com" in paper_link or _pub_from_doi == "elsevier"):
+                data = await self._try_cdp_elsevier(paper, log=log)
+                if _ok(data, "cdp_elsevier"):
+                    return cached
+
+        # ── 13. LLM search for alternative PDF (preprints, author pages, repos)
         # Uses search-grounded model to find freely accessible versions.
         # Works for ALL users regardless of IP — finds arXiv/repo versions.
         if self._llm_key and full_title:
@@ -1332,7 +1743,7 @@ class PDFDownloader:
             if _ok(data, "llm_search"):
                 return cached
 
-        # ── 13. curl + socks5 + Chrome cookies (legacy fallback)
+        # ── 14. curl + socks5 + Chrome cookies (legacy fallback)
         try:
             if paper_link and "scholar.google" not in paper_link:
                 data = await self._curl_publisher_download(paper_link)
@@ -1346,7 +1757,7 @@ class PDFDownloader:
         except Exception:
             pass
 
-        # ── 14. ScraperAPI + LLM smart fallback (last resort for non-publisher pages)
+        # ── 15. ScraperAPI + LLM smart fallback (last resort for non-publisher pages)
         if paper_link and "scholar.google" not in paper_link and not _is_publisher_paper:
             data = await self._smart_scraper_download(paper_link)
             if data and len(data) > 1000 and data[:5] == b"%PDF-":

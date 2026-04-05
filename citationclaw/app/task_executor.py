@@ -394,6 +394,7 @@ class TaskExecutor:
             llm_api_key=config.openai_api_key,
             llm_base_url=config.openai_base_url,
             llm_model=getattr(config, 'dashboard_model', '') or config.openai_model,
+            cdp_debug_port=getattr(config, 'cdp_debug_port', 0),
         )
         parser = MinerUParser(
             log_callback=self.log_manager.info,
