@@ -8,7 +8,7 @@ English | [中文](./README.zh-CN.md)
   <img src="docs/assets/logo.png" width="60%" alt="CitationClaw Logo"><br>
 
 # CitationClaw: A Lightweight Engine for Discovering Scientific Impact through Citations
-# Citationclaw v2 is coming soon, stay tuned!
+# CitationClaw v2 is coming soon, stay tuned!
 
 让每一次引用都成为可解释的影响力  
 <em>Turning Every Citation into Explainable Impact</em>
