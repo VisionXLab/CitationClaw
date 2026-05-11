@@ -116,6 +116,20 @@ class MinerUParser:
         return self._parse_pymupdf(pdf_path, output_dir)
 
     @staticmethod
+    def _write_meta(output_dir: Path, source: str, parsed_at: str) -> None:
+        (output_dir / "meta.json").write_text(
+            json.dumps(
+                {
+                    "source": source,
+                    "parsed_at": parsed_at,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+    @staticmethod
     def _get_page_count(pdf_path: Path) -> int:
         """Quick page count via PyMuPDF (no full parse)."""
         try:
@@ -150,14 +164,26 @@ class MinerUParser:
         - All cloud fail: Local MinerU (serial) → PyMuPDF
         """
         output_dir = self._output_base / paper_key
+        if self._log:
+            self._log(
+                f"    [MinerU] 开始解析 key={paper_key} file={pdf_path.name}"
+            )
 
         # 1. Cache
         cached = self._load_cached(output_dir)
         if cached:
+            if self._log:
+                self._log(
+                    f"    [MinerU] 命中缓存 source={cached.get('source','?')} dir={output_dir}"
+                )
             return cached
 
         file_size = pdf_path.stat().st_size if pdf_path.exists() else 0
         page_count = self._get_page_count(pdf_path)
+        if self._log:
+            self._log(
+                f"    [MinerU] 文件信息 size={file_size // 1024}KB pages={page_count}"
+            )
 
         # Skip oversized PDFs (>100MB or >200 pages)
         if file_size > 100 * 1024 * 1024 or page_count > 200:
@@ -169,22 +195,30 @@ class MinerUParser:
 
         # 2. Cloud routing — try both tiers with smart fallthrough
         if is_large and self._mineru_token and not self._cloud_precision_failed:
+            if self._log:
+                self._log("    [MinerU] 路由: large PDF -> Cloud Precision first")
             # Large + has token → Precision first
             result = await self._parse_cloud_precision(pdf_path, output_dir)
             if result:
                 return result
             # Precision failed → try Agent as fallback (may reject on size)
             if not self._cloud_agent_disabled:
+                if self._log:
+                    self._log("    [MinerU] Cloud Precision 未成功，尝试 Cloud Agent")
                 result = await self._parse_cloud_agent(pdf_path, output_dir)
                 if result:
                     return result
         elif is_large and not self._mineru_token:
+            if self._log:
+                self._log("    [MinerU] 路由: large PDF without token -> try Cloud Agent")
             # Large + no token → Agent will likely reject, try anyway then local
             if not self._cloud_agent_disabled:
                 result = await self._parse_cloud_agent(pdf_path, output_dir)
                 if result:
                     return result
         else:
+            if self._log:
+                self._log("    [MinerU] 路由: small PDF -> Cloud Agent first")
             # Small file → Agent first
             if not self._cloud_agent_disabled:
                 result = await self._parse_cloud_agent(pdf_path, output_dir)
@@ -192,12 +226,16 @@ class MinerUParser:
                     return result
             # Agent failed → try Precision if token available
             if self._mineru_token and not self._cloud_precision_failed:
+                if self._log:
+                    self._log("    [MinerU] Cloud Agent 未成功，尝试 Cloud Precision")
                 result = await self._parse_cloud_precision(pdf_path, output_dir)
                 if result:
                     return result
 
         # 3. Local MinerU (serialized — only 1 at a time)
         if self._has_local_mineru and not self._local_mineru_failed:
+            if self._log:
+                self._log("    [MinerU] 尝试本地 MinerU")
             async with _local_mineru_lock:
                 result = await asyncio.to_thread(
                     self._parse_local_mineru, pdf_path, output_dir
@@ -206,18 +244,34 @@ class MinerUParser:
                     return result
 
         # 4. PyMuPDF fallback
+        if self._log:
+            self._log("    [MinerU] 所有 MinerU 路径未成功，回退到 PyMuPDF")
         return self._parse_pymupdf(pdf_path, output_dir)
 
     # ── Cloud Agent API (free, ≤10MB/≤20 pages) ──────────────────────────
 
     @staticmethod
     def _make_direct_client(timeout: float = 120.0):
-        """Create httpx client WITHOUT proxy — MinerU is a China service, no proxy needed."""
+        """Create direct httpx client while still honoring explicit CA bundle env vars.
+
+        We intentionally keep ``trust_env=False`` to avoid inheriting system proxies
+        such as socks5/ALL_PROXY, but Cloudflare Gateway / enterprise TLS setups often
+        require a custom CA bundle passed via ``SSL_CERT_FILE`` or
+        ``REQUESTS_CA_BUNDLE``. httpx ignores those env vars when ``trust_env=False``,
+        so we wire them into ``verify`` manually.
+        """
         import httpx
+        ca_bundle = None
+        for var in ["CA_BUNDLE_PATH", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"]:
+            val = (os.environ.get(var) or "").strip().strip('"').strip("'")
+            if val and os.path.exists(val):
+                ca_bundle = val
+                break
         return httpx.AsyncClient(
             proxy=None,
             trust_env=False,  # Ignore ALL_PROXY / socks5 env vars
             timeout=timeout,
+            verify=ca_bundle if ca_bundle else True,
             headers={"User-Agent": "CitationClaw/2.0"},
         )
 
@@ -289,14 +343,15 @@ class MinerUParser:
             # Save to cache
             output_dir.mkdir(parents=True, exist_ok=True)
             (output_dir / "full.md").write_text(md_text, encoding="utf-8")
-
+            parsed_at = datetime.now(timezone.utc).isoformat()
+            self._write_meta(output_dir, "mineru_cloud_agent", parsed_at)
             return {
                 "content_list": [],
                 "full_md": md_text,
                 "first_page_blocks": self._md_to_first_page(md_text),
                 "references_md": self._extract_references(md_text),
                 "source": "mineru_cloud_agent",
-                "parsed_at": datetime.now(timezone.utc).isoformat(),
+                "parsed_at": parsed_at,
             }
         except Exception as e:
             err = str(e)[:80]
@@ -463,6 +518,8 @@ class MinerUParser:
         if not md_text:
             return None
 
+        parsed_at = datetime.now(timezone.utc).isoformat()
+        self._write_meta(output_dir, "mineru_cloud_precision", parsed_at)
         return {
             "content_list": content_list,
             "full_md": md_text,
@@ -472,7 +529,7 @@ class MinerUParser:
             ),
             "references_md": self._extract_references(md_text),
             "source": "mineru_cloud_precision",
-            "parsed_at": datetime.now(timezone.utc).isoformat(),
+            "parsed_at": parsed_at,
         }
 
     # ── Local MinerU (needs GPU + models) ─────────────────────────────────
@@ -520,6 +577,8 @@ class MinerUParser:
             # First successful local parse → symlink models to project for next time
             self._ensure_project_model_link()
 
+            parsed_at = datetime.now(timezone.utc).isoformat()
+            self._write_meta(output_dir, "mineru_local", parsed_at)
             return {
                 "content_list": content_list,
                 "full_md": md_text,
@@ -528,7 +587,7 @@ class MinerUParser:
                 ),
                 "references_md": self._extract_references(md_text),
                 "source": "mineru_local",
-                "parsed_at": datetime.now(timezone.utc).isoformat(),
+                "parsed_at": parsed_at,
             }
         except Exception as e:
             error_msg = str(e)
@@ -594,13 +653,15 @@ class MinerUParser:
             output_dir.mkdir(parents=True, exist_ok=True)
             (output_dir / "full.md").write_text(full_text, encoding="utf-8")
 
+            parsed_at = datetime.now(timezone.utc).isoformat()
+            self._write_meta(output_dir, "pymupdf", parsed_at)
             return {
                 "content_list": [],
                 "full_md": full_text,
                 "first_page_blocks": self._md_to_first_page(first_page),
                 "references_md": self._extract_references(full_text),
                 "source": "pymupdf",
-                "parsed_at": datetime.now(timezone.utc).isoformat(),
+                "parsed_at": parsed_at,
             }
         except Exception:
             return None
@@ -619,10 +680,17 @@ class MinerUParser:
         try:
             md_text = md_path.read_text(encoding="utf-8")
             content_list = []
+            meta_path = output_dir / "meta.json"
+            source = ""
+            parsed_at = datetime.now(timezone.utc).isoformat()
             for f in output_dir.rglob("*content_list.json"):
                 with open(f) as fh:
                     content_list = json.load(fh)
                 break
+            if meta_path.exists():
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                source = meta.get("source", "")
+                parsed_at = meta.get("parsed_at", parsed_at)
             return {
                 "content_list": content_list,
                 "full_md": md_text,
@@ -631,8 +699,8 @@ class MinerUParser:
                     if content_list else self._md_to_first_page(md_text)
                 ),
                 "references_md": self._extract_references(md_text),
-                "source": "mineru" if content_list else "pymupdf",
-                "parsed_at": datetime.now(timezone.utc).isoformat(),
+                "source": source or ("mineru" if content_list else "pymupdf"),
+                "parsed_at": parsed_at,
             }
         except Exception:
             return None

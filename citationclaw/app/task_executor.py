@@ -88,6 +88,21 @@ class TaskExecutor:
         collector = MetadataCollector(
             s2_api_key=getattr(config, 's2_api_key', None),
         )
+
+        # 结构化作者提取：WOS→S2→MinerU（有 wos_api_key 时启用）
+        _wos_key = getattr(config, 'wos_api_key', '') or ''
+        _s2_key_for_fetcher = getattr(config, 's2_api_key', '') or ''
+        from citationclaw.core.structured_author_fetcher import StructuredAuthorFetcher
+        structured_fetcher: Optional[StructuredAuthorFetcher] = None
+        if _wos_key:
+            structured_fetcher = StructuredAuthorFetcher(
+                wos_api_key=_wos_key,
+                s2_api_key=_s2_key_for_fetcher,
+                log_callback=self.log_manager.info,
+            )
+            self.log_manager.info(f"📋 WOS 结构化作者提取已启用（WOS + S2 双源融合）")
+        else:
+            self.log_manager.info("⚪ 未配置 WOS Key，使用默认 S2+OpenAlex 流程")
         self_cite_detector = SelfCitationDetector()
         prefilter = ScholarPreFilter()
 
@@ -173,11 +188,50 @@ class TaskExecutor:
                         metadata = cached
                         api_hits += 1
                     else:
-                        # S2-first: search by title, then by URL if title miss
-                        metadata = await collector.collect(title, paper_url=paper_link)
+                        # WOS→S2→OpenAlex 结构化提取（有 wos_api_key 时优先）
+                        wos_authors = []
+                        wos_source = ""
+                        if structured_fetcher:
+                            try:
+                                wos_authors, wos_source = await structured_fetcher.fetch(title)
+                            except Exception:
+                                wos_authors = []
+
+                        if wos_authors:
+                            # WOS/S2 结构化结果直接使用，跳过 collector
+                            metadata = {
+                                "title": title,
+                                "doi": "", "s2_id": "", "arxiv_id": "",
+                                "year": paper.get("paper_year"),
+                                "cited_by_count": 0, "influential_citation_count": 0,
+                                "pdf_url": "", "oa_pdf_url": "", "venue": "",
+                                "authors": wos_authors,
+                                "sources": [wos_source],
+                            }
+                        else:
+                            # Fallback: S2-first via collector
+                            metadata = await collector.collect(title, paper_url=paper_link)
+
                         if metadata:
                             await metadata_cache.update(metadata.get("doi", ""), title, metadata)
                         api_queries += 1
+
+                    # ── DEBUG: per-paper author detail ──
+                    if metadata:
+                        _src = ",".join(metadata.get("sources", [])) or "?"
+                        _authors = metadata.get("authors", [])
+                        self.log_manager.info(
+                            f"  ┌─[{_src}] {title[:52]}"
+                        )
+                        for _a in _authors[:10]:
+                            _n = _a.get("name", "?")
+                            _af = (_a.get("affiliation", "") or "—")[:45]
+                            _afsrc = f" [{_a['affiliation_source']}]" if _a.get("affiliation_source") else ""
+                            self.log_manager.info(f"  │  {_n} | {_af}{_afsrc}")
+                        if len(_authors) > 10:
+                            self.log_manager.info(f"  │  …共 {len(_authors)} 位")
+                        self.log_manager.info("  └─")
+
                     results_slots[idx] = metadata
                 except Exception as e:
                     # Don't let one paper's API failure crash the entire batch
@@ -267,6 +321,36 @@ class TaskExecutor:
             f"Phase 2 完成: API找到 {api_found} / GS兜底 {gs_fallback_count} / "
             f"缓存 {api_hits} / 共 {len(records_data)} 篇"
         )
+
+        # ── DEBUG: save per-paper author breakdown to JSON ──
+        try:
+            import json as _dbg_json
+            _debug_records = []
+            for _i, (_paper, _meta, _canon) in enumerate(records_data):
+                _debug_records.append({
+                    "idx": _i + 1,
+                    "title": _paper.get("paper_title", ""),
+                    "canonical": _canon,
+                    "source": ",".join((_meta or {}).get("sources", [])) or "gs_fallback",
+                    "authors": [
+                        {
+                            "name": _a.get("name", ""),
+                            "affiliation": _a.get("affiliation", ""),
+                            "affiliation_source": _a.get("affiliation_source", ""),
+                            "s2_id": _a.get("s2_id", ""),
+                        }
+                        for _a in (_meta or {}).get("authors", [])
+                    ],
+                })
+            _debug_file = result_dir / f"{output_prefix}_author_debug.json"
+            _debug_file.write_text(
+                _dbg_json.dumps(_debug_records, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            self.log_manager.info(f"📄 作者调试文件: {_debug_file}")
+        except Exception as _e:
+            self.log_manager.warning(f"调试文件保存失败: {_e}")
+
         if gs_fallback_count > len(records_data) * 0.5:
             self.log_manager.warning(
                 f"⚠ {gs_fallback_count} 篇论文 API 未找到（S2/OpenAlex 均未收录），"

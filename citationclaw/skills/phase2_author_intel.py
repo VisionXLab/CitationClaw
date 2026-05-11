@@ -45,6 +45,9 @@ class AuthorIntelSkill:
             target_paper_authors=target_paper_authors,
             author_cache=author_cache,
             cancel_event=quota_event,
+            wos_api_key=getattr(config, 'wos_api_key', ''),
+            s2_api_key=getattr(config, 's2_api_key', ''),
+            mineru_api_token=getattr(config, 'mineru_api_token', ''),
         )
 
         await searcher.search(

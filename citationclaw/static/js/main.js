@@ -663,6 +663,7 @@ function initIndexPage() {
             if (el('idx-service-tier')) el('idx-service-tier').value = cfg.service_tier || 'basic';
             if (el('idx-dashboard-model')) el('idx-dashboard-model').value = cfg.dashboard_model || 'gemini-3-flash-preview-nothinking';
             if (el('idx-s2-api-key')) el('idx-s2-api-key').value = cfg.s2_api_key || '';
+            if (el('idx-wos-api-key')) el('idx-wos-api-key').value = cfg.wos_api_key || '';
             if (el('idx-mineru-token')) el('idx-mineru-token').value = cfg.mineru_api_token || '';
             if (el('idx-api-access-token')) el('idx-api-access-token').value = cfg.api_access_token || '';
             if (el('idx-api-user-id')) el('idx-api-user-id').value = cfg.api_user_id || '';
@@ -709,6 +710,7 @@ function initIndexPage() {
                 }[el('idx-service-tier')?.value || 'basic']),
                 dashboard_model: el('idx-dashboard-model')?.value || '',
                 s2_api_key: el('idx-s2-api-key')?.value || '',
+                wos_api_key: el('idx-wos-api-key')?.value || '',
                 mineru_api_token: el('idx-mineru-token')?.value || '',
                 api_access_token: el('idx-api-access-token')?.value || '',
                 api_user_id: el('idx-api-user-id')?.value || '',
@@ -721,6 +723,7 @@ function initIndexPage() {
             if (!body.api_access_token && existing.api_access_token) delete body.api_access_token;
             if (!body.api_user_id && existing.api_user_id) delete body.api_user_id;
             if (!body.s2_api_key && existing.s2_api_key) delete body.s2_api_key;
+            if (!body.wos_api_key && existing.wos_api_key) delete body.wos_api_key;
             if (!body.mineru_api_token && existing.mineru_api_token) delete body.mineru_api_token;
             const merged = Object.assign({}, existing, body);
             const resp = await safeFetch('/api/config', {

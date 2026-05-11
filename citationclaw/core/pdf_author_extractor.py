@@ -1,4 +1,4 @@
-"""Extract authors and affiliations from PDF first page using lightweight LLM."""
+"""Extract authors and affiliations from PDF content using lightweight LLM."""
 import json
 from typing import List, Optional
 
@@ -7,7 +7,7 @@ from citationclaw.core.http_utils import make_async_client
 
 
 class PDFAuthorExtractor:
-    """Extract authors + affiliations from PDF first page via lightweight LLM."""
+    """Extract authors + affiliations from PDF full content via lightweight LLM."""
 
     def __init__(self, api_key: str = "", base_url: str = "", model: str = ""):
         self._api_key = api_key
@@ -15,17 +15,17 @@ class PDFAuthorExtractor:
         self._model = model
         self._prompt_loader = PromptLoader()
 
-    async def extract(self, first_page_blocks: list) -> List[dict]:
-        """Send first-page text blocks to lightweight LLM, return author list.
+    async def extract(self, blocks: list) -> List[dict]:
+        """Send PDF text blocks to lightweight LLM, return author list.
 
         Returns: [{"name": "...", "affiliation": "...", "email": "..."}]
         """
-        if not self._api_key or not first_page_blocks:
+        if not self._api_key or not blocks:
             return []
 
         # Build text from blocks
         lines = []
-        for i, b in enumerate(first_page_blocks[:20]):
+        for i, b in enumerate(blocks):
             text = b.get("text", "").strip() if isinstance(b, dict) else str(b).strip()
             if text:
                 lines.append(f"[{i}] {text}")

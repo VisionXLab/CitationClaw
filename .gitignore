@@ -29,6 +29,7 @@ data/result-*/
 data/cache/
 config.json
 .superpowers/
+autor-test/.env
 
 # Local-only files (Claude instructions)
 CLAUDE.md

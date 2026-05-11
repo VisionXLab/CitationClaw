@@ -140,6 +140,9 @@ class AppConfig(BaseModel):
     # Semantic Scholar API Key (提升速率限制: 1 req/s → 10-100 req/s)
     s2_api_key: str = Field(default="", description="Semantic Scholar API Key（可选，大幅提升 PDF 下载成功率）")
 
+    # Web of Science Starter API Key (结构化作者提取)
+    wos_api_key: str = Field(default="", description="Web of Science Starter API Key（用于结构化作者提取，优先级高于 S2）")
+
     # MinerU Cloud API
     mineru_api_token: str = Field(default="", description="MinerU Cloud Precision API Token（可选，用于大文件解析）")
 
