@@ -133,6 +133,7 @@ class ConfigUpdate(BaseModel):
     dashboard_skip_citing_analysis: bool = False
     dashboard_model: str = "gemini-3-flash-preview-nothinking"
     s2_api_key: str = ""
+    wos_api_key: str = ""
     mineru_api_token: str = ""
     cdp_debug_port: int = 0
     api_access_token: str = ""
@@ -165,7 +166,6 @@ async def get_providers():
 async def save_config(config: ConfigUpdate):
     try:
         data = config.model_dump()
-        # Debug: log MinerU token save status
         token = data.get("mineru_api_token", "")
         if token:
             print(f"[CONFIG] MinerU token 已保存: {token[:8]}...({len(token)} chars)")

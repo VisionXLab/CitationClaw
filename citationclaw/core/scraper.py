@@ -283,12 +283,12 @@ class GoogleScholarScraper:
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(html, 'html.parser')
             stat_patterns = [
-                r'找到约\s*([\d,]+)\s*条',
-                r'获得\s*([\d,]+)\s*条',
-                r'约\s*([\d,]+)\s*条',
-                r'([\d,]+)\s*条结果',
-                r'About\s+([\d,]+)\s+results?',
-                r'^([\d,]+)\s+results?\b',
+                r'找到约\s*([\d,.\s]+?)\s*条',
+                r'获得\s*([\d,.\s]+?)\s*条',
+                r'约\s*([\d,.\s]+?)\s*条',
+                r'([\d,.\s]+?)\s*条结果',
+                r'About\s+([\d,.\s]+?)\s+results?',
+                r'^([\d,.\s]+?)\s+results?\b',
             ]
             candidates = []
             id_elem = soup.find(id='gs_ab_mdw')
@@ -301,25 +301,29 @@ class GoogleScholarScraper:
                 for pat in stat_patterns:
                     m = re.search(pat, stat_text, re.IGNORECASE)
                     if m:
-                        citation_count = int(m.group(1).replace(',', ''))
-                        self.log_callback(f"🔍 结果统计元素文本: {stat_text[:100]}")
-                        return citation_count
+                        raw = re.sub(r'[,.\s]', '', m.group(1).strip())
+                        if raw.isdigit():
+                            citation_count = int(raw)
+                            self.log_callback(f"🔍 结果统计元素文本: {stat_text[:100]}")
+                            return citation_count
         except Exception:
             pass
 
         # 第二步：对整个 HTML 做正则（数字可能含 <b> 标签）
         patterns = [
-            r'找到约\s*(?:<[^>]+>)?\s*([\d,]+)\s*(?:<[^>]+>)?\s*条',
-            r'获得\s*(?:<[^>]+>)?\s*([\d,]+)\s*(?:<[^>]+>)?\s*条',
-            r'约\s*(?:<[^>]+>)?\s*([\d,]+)\s*(?:<[^>]+>)?\s*条结果',
-            r'About\s+(?:<[^>]+>)?\s*([\d,]+)\s+results?',
-            r'([\d,]+)\s*条结果',
-            r'>(\d[\d,]*)\s+results?\b',
+            r'找到约\s*(?:<[^>]+>)?\s*([\d,.\s]+?)\s*(?:<[^>]+>)?\s*条',
+            r'获得\s*(?:<[^>]+>)?\s*([\d,.\s]+?)\s*(?:<[^>]+>)?\s*条',
+            r'约\s*(?:<[^>]+>)?\s*([\d,.\s]+?)\s*(?:<[^>]+>)?\s*条结果',
+            r'About\s+(?:<[^>]+>)?\s*([\d,.\s]+?)\s+results?',
+            r'([\d,.\s]+?)\s*条结果',
+            r'>(\d[\d,.\s]*?)\s+results?\b',
         ]
         for pattern in patterns:
             match = re.search(pattern, html, re.IGNORECASE)
             if match:
-                return int(match.group(1).replace(',', ''))
+                raw = re.sub(r'[,.\s]', '', match.group(1).strip())
+                if raw.isdigit():
+                    return int(raw)
 
         return 0
 

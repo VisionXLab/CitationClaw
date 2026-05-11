@@ -1,13 +1,7 @@
-"""Cross-validate author affiliations between API data and PDF-extracted data.
-
-Strategy:
-- Match authors by name (fuzzy, handles Chinese/English variants)
-- PDF affiliation = publication-time truth (preferred)
-- API affiliation = current affiliation (may have changed)
-- Merge: PDF > API Author-level > API paper-level > empty
-"""
 import re
 from typing import List, Optional
+
+from citationclaw.core.author_name_utils import format_wos_name, name_keys
 
 
 class AffiliationValidator:
@@ -26,7 +20,7 @@ class AffiliationValidator:
         if not pdf_authors:
             return api_authors
         if not api_authors:
-            return [{"name": a["name"], "affiliation": a.get("affiliation", ""),
+            return [{"name": format_wos_name(a["name"]) or a["name"], "affiliation": a.get("affiliation", ""),
                       "country": "", "affiliation_source": "pdf"}
                     for a in pdf_authors]
 
@@ -79,7 +73,7 @@ class AffiliationValidator:
             if not (pdf_keys & matched_pdf_names):
                 pdf_affil = pdf_a.get("affiliation", "")
                 merged.append({
-                    "name": pdf_a["name"],
+                    "name": format_wos_name(pdf_a["name"]) or pdf_a["name"],
                     "affiliation": pdf_affil,
                     "email": pdf_a.get("email", ""),
                     "country": self._infer_country(pdf_affil),
@@ -115,7 +109,8 @@ class AffiliationValidator:
         if any(k in aff for k in cn_kw):
             return "CN"
         # US institutions
-        us_kw = ["mit ", "m.i.t", "stanford", "harvard", "berkeley",
+        us_kw = ["mit", "m.i.t", "massachusetts institute of technology",
+                 "stanford", "harvard", "berkeley",
                  "carnegie mellon", "cmu", "princeton", "yale",
                  "columbia university", "cornell", "ucla", "caltech",
                  "university of california", "university of michigan",
@@ -163,18 +158,18 @@ class AffiliationValidator:
 
     @staticmethod
     def _name_keys(name: str) -> set:
-        """Extract all name variants for matching (same logic as scholar dedup)."""
         keys = set()
         cleaned = name.strip()
         if not cleaned:
             return keys
-        # Split on parentheses and slashes
+
         parts = re.split(r'[()（）/／]', cleaned)
         for part in parts:
-            p = part.strip().strip(',，、').strip()
-            if p and len(p) >= 2:
-                keys.add(p.lower())
+            part = part.strip().strip(',，、').strip()
+            if part and len(part) >= 2:
+                keys.update(name_keys(part))
+
         base = re.sub(r'[（(].*?[）)]', '', cleaned).strip()
         if base and len(base) >= 2:
-            keys.add(base.lower())
+            keys.update(name_keys(base))
         return keys

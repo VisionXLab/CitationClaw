@@ -5,6 +5,7 @@ from typing import Callable, Optional
 from openai import AsyncOpenAI
 import httpx
 from citationclaw.core.author_cache import AuthorInfoCache
+from citationclaw.core.structured_author_fetcher import StructuredAuthorFetcher
 
 
 class AuthorSearcher:
@@ -27,6 +28,9 @@ class AuthorSearcher:
         target_paper_authors: Optional[str] = None,
         author_cache: Optional[AuthorInfoCache] = None,
         cancel_event: Optional[asyncio.Event] = None,
+        wos_api_key: str = "",
+        s2_api_key: str = "",
+        mineru_api_token: str = "",
     ):
         """
         作者学术信息搜索器
@@ -90,6 +94,27 @@ class AuthorSearcher:
         # 作者信息持久化缓存
         self.author_cache: Optional[AuthorInfoCache] = author_cache
         self.cancel_event: Optional[asyncio.Event] = cancel_event
+
+        # 结构化作者提取（WOS→S2→MinerU），有 wos_api_key 或 s2_api_key 时启用
+        self.structured_fetcher: Optional[StructuredAuthorFetcher] = None
+        if wos_api_key or s2_api_key:
+            self.structured_fetcher = StructuredAuthorFetcher(
+                wos_api_key=wos_api_key,
+                s2_api_key=s2_api_key,
+                mineru_api_token=mineru_api_token,
+                openai_api_key=api_key,
+                openai_base_url=base_url,
+                model=model,
+                log_callback=log_callback,
+            )
+            sources = []
+            if wos_api_key:
+                sources.append("WOS")
+            if s2_api_key:
+                sources.append("S2")
+            log_callback(f"📋 结构化作者提取已启用：{'→'.join(sources)}→MinerU")
+        else:
+            log_callback("⚪ 结构化作者提取未启用（未配置 WOS/S2 API Key）")
 
         # 自引检测 Prompt（使用轻量级模型）
         self.self_citation_check_prompt = (
@@ -377,6 +402,30 @@ class AuthorSearcher:
                 'Citations': paper_content['citation'],
                 'Authors_with_Profile': str(paper_content['authors']),
             }
+
+            # ── 结构化作者提取（WOS→S2→MinerU）─────────────────────────────
+            if self.structured_fetcher:
+                doi = paper_content.get('doi', '')
+                pdf_path = paper_content.get('pdf_path', None)
+                self.log_callback(f"  🔍 [结构化] 查询作者: {paper_title[:50]}...")
+                try:
+                    struct_authors, struct_source = await self.structured_fetcher.fetch(
+                        paper_title, doi=doi, pdf_path=pdf_path
+                    )
+                    record_dict['Paper_Authors'] = struct_authors
+                    record_dict['Paper_Authors_Source'] = struct_source
+                    if struct_authors:
+                        self.log_callback(
+                            f"  📋 [{struct_source}] 找到 {len(struct_authors)} 位作者: {paper_title[:40]}..."
+                        )
+                    else:
+                        self.log_callback(
+                            f"  ⚪ [结构化] 未找到作者（WOS/S2 均无收录）: {paper_title[:40]}..."
+                        )
+                except Exception as exc:
+                    self.log_callback(f"  ⚠️ 结构化作者提取失败: {exc}")
+                    record_dict['Paper_Authors'] = []
+                    record_dict['Paper_Authors_Source'] = ''
 
             # ── 查询缓存（取出已有字段供后续各步使用）────────────────────────
             cached = (await self.author_cache.get(paper_link, paper_title)) if self.author_cache else None
