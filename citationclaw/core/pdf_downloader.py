@@ -1286,7 +1286,7 @@ class PDFDownloader:
                         data = await self._try_url(c, url)
                         if data and len(data) > 1000 and data[:5] == b"%PDF-":
                             if log:
-                                log(f"    [LLM搜索] 下载成功: {len(data)//1024}KB")
+                                log(f"    ✅ [LLM搜索] 下载成功: {len(data)//1024}KB")
                             return data
                     except Exception:
                         pass
@@ -1630,9 +1630,9 @@ class PDFDownloader:
             if log:
                 label = _SOURCE_LABELS.get(source, source)
                 try:
-                    log(f"    [PDF OK] {label} ({len(data)//1024}KB): {title}")
+                    log(f"    ✅ [PDF OK] {label} ({len(data)//1024}KB): {title}")
                 except UnicodeEncodeError:
-                    log(f"    [PDF OK] {label} ({len(data)//1024}KB)")
+                    log(f"    ✅ [PDF OK] {label} ({len(data)//1024}KB)")
             return True
 
         # Detect publisher early (used by multiple steps)
@@ -1809,7 +1809,7 @@ class PDFDownloader:
             if data and len(data) > 1000 and data[:5] == b"%PDF-":
                 cached.write_bytes(data)
                 if log:
-                    log(f"    [PDF OK] ScraperAPI智能下载 ({len(data)//1024}KB): {title}")
+                    log(f"    ✅ [PDF OK] ScraperAPI智能下载 ({len(data)//1024}KB): {title}")
                 return cached
 
         return None  # All sources exhausted for this attempt
