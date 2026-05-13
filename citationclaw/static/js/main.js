@@ -664,6 +664,7 @@ function initIndexPage() {
             if (el('idx-dashboard-model')) el('idx-dashboard-model').value = cfg.dashboard_model || 'gemini-3-flash-preview-nothinking';
             if (el('idx-s2-api-key')) el('idx-s2-api-key').value = cfg.s2_api_key || '';
             if (el('idx-mineru-token')) el('idx-mineru-token').value = cfg.mineru_api_token || '';
+            if (el('idx-cdp-debug-port')) el('idx-cdp-debug-port').value = cfg.cdp_debug_port || 0;
             if (el('idx-api-access-token')) el('idx-api-access-token').value = cfg.api_access_token || '';
             if (el('idx-api-user-id')) el('idx-api-user-id').value = cfg.api_user_id || '';
         } catch (e) {
@@ -710,6 +711,7 @@ function initIndexPage() {
                 dashboard_model: el('idx-dashboard-model')?.value || '',
                 s2_api_key: el('idx-s2-api-key')?.value || '',
                 mineru_api_token: el('idx-mineru-token')?.value || '',
+                cdp_debug_port: parseInt(el('idx-cdp-debug-port')?.value || '0') || 0,
                 api_access_token: el('idx-api-access-token')?.value || '',
                 api_user_id: el('idx-api-user-id')?.value || '',
             };

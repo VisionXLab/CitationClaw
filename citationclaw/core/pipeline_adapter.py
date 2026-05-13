@@ -4,6 +4,24 @@ from typing import Optional, List
 from citationclaw.core.scholar_search_agent import ScholarSearchAgent
 
 
+def _format_pdf_failures(failures) -> str:
+    """Serialize PDF download failure stages into a compact export string."""
+    if not failures or not isinstance(failures, list):
+        return ""
+    parts = []
+    for failure in failures:
+        if not isinstance(failure, dict):
+            continue
+        stage = failure.get("stage", "?")
+        bits = []
+        for key in ("http_status", "error_type", "reason"):
+            value = failure.get(key)
+            if value is not None and value != "":
+                bits.append(f"{key}={value}")
+        parts.append(f"{stage}:" + ",".join(bits) if bits else stage)
+    return "; ".join(parts)
+
+
 class PipelineAdapter:
     """Convert between new pipeline data and legacy record format."""
 
@@ -174,6 +192,8 @@ class PipelineAdapter:
             # ── PDF 与数据来源 ──
             "PDF_Download": pdf_downloaded,
             "pdf_url": _clean((metadata or {}).get("pdf_url", "")),
+            "PDF_Source": _clean(paper.get("_pdf_source", "")),
+            "PDF_Failure_Reasons": _format_pdf_failures(paper.get("_pdf_failures")),
             "Data_Sources": ",".join(sources),
             # ── 调试/审计字段（隐藏在最后）──
             "API_Authors": _clean(api_affil_str),

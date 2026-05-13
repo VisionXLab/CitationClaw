@@ -444,25 +444,24 @@ class TaskExecutor:
             f"(跳过 {self_cite_count} 篇自引) ({_DL_CONCURRENCY} workers)..."
         )
 
-        # Set self-citation papers to None (skip download)
-        async def _dl_if_needed(idx, paper):
-            if self_cite_map.get(idx, False):
-                return None  # Skip self-citation
-            try:
-                return await downloader.download(paper, log=self.log_manager.info)
-            except Exception as e:
-                title = paper.get("Paper_Title", "?")[:40]
-                self.log_manager.warning(f"  PDF 下载异常 ({title}): {str(e)[:60]}")
-                return None
+        pdf_paths: List[Optional[Path]] = [None] * len(dl_papers)
+        download_indices = [i for i in range(len(dl_papers)) if not self_cite_map.get(i, False)]
+        download_batch = [dl_papers[i] for i in download_indices]
 
-        sem = asyncio.Semaphore(_DL_CONCURRENCY)
-        async def _dl_with_sem(idx, paper):
-            async with sem:
-                return await _dl_if_needed(idx, paper)
-
-        pdf_paths = await asyncio.gather(*[
-            _dl_with_sem(i, p) for i, p in enumerate(dl_papers)
-        ])
+        if download_batch:
+            batch_paths = await downloader.batch_download(
+                download_batch,
+                concurrency=_DL_CONCURRENCY,
+                log=self.log_manager.info,
+            )
+            for idx, pdf_path in zip(download_indices, batch_paths):
+                pdf_paths[idx] = pdf_path
+                src = dl_papers[idx].get("_pdf_source", "")
+                if src:
+                    records_data[idx][0]["_pdf_source"] = src
+                failures = dl_papers[idx].get("_pdf_failures")
+                if failures:
+                    records_data[idx][0]["_pdf_failures"] = failures
 
         downloaded = sum(1 for i, p in enumerate(pdf_paths) if p and not self_cite_map.get(i, False))
         failed = need_download - downloaded

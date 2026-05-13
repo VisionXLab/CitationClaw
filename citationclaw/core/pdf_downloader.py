@@ -1541,8 +1541,17 @@ class PDFDownloader:
         resolve on the second attempt.
         """
         title = paper.get("Paper_Title", paper.get("title", "?"))[:40]
+        paper["_pdf_failures"] = []
         cached = self._cache_path(paper)
         if cached.exists() and cached.stat().st_size > 0:
+            src_file = cached.with_suffix(".pdf.src")
+            if src_file.exists():
+                try:
+                    paper["_pdf_source"] = src_file.read_text(encoding="utf-8").strip() or "cache"
+                except Exception:
+                    paper["_pdf_source"] = "cache"
+            else:
+                paper["_pdf_source"] = "cache"
             if log:
                 log(f"    [PDF缓存] {title}")
             return cached
@@ -1558,6 +1567,10 @@ class PDFDownloader:
 
         if log:
             log(f"    [PDF] 所有来源均失败 (含{self._RETRY_ATTEMPTS}次重试): {title}")
+        paper.setdefault("_pdf_failures", []).append({
+            "stage": "all_sources",
+            "reason": "exhausted",
+        })
         return None
 
     async def _download_once(self, paper: dict, log=None) -> Optional[Path]:
@@ -1598,6 +1611,10 @@ class PDFDownloader:
             # ── Title verification (catch wrong-paper downloads) ──
             if not skip_verify and full_title and len(full_title) > 10:
                 if not _pdf_title_matches(data, full_title):
+                    paper.setdefault("_pdf_failures", []).append({
+                        "stage": source,
+                        "reason": "title_mismatch",
+                    })
                     if log:
                         try:
                             log(f"    [PDF SKIP] {_SOURCE_LABELS.get(source, source)} 标题不匹配，跳过: {title}")
@@ -1605,6 +1622,11 @@ class PDFDownloader:
                             pass
                     return False
             cached.write_bytes(data)
+            paper["_pdf_source"] = source
+            try:
+                cached.with_suffix(".pdf.src").write_text(source, encoding="utf-8")
+            except Exception:
+                pass
             if log:
                 label = _SOURCE_LABELS.get(source, source)
                 try:
@@ -1946,6 +1968,10 @@ class PDFDownloader:
                         timeout=self._PER_PAPER_TIMEOUT,
                     )
                 except asyncio.TimeoutError:
+                    p.setdefault("_pdf_failures", []).append({
+                        "stage": "timeout",
+                        "reason": f"{self._PER_PAPER_TIMEOUT}s",
+                    })
                     if log:
                         log(f"    [PDF超时] {self._PER_PAPER_TIMEOUT}s 放弃: {title}")
                     return None
