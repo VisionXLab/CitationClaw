@@ -63,6 +63,7 @@ class LogManager:
             level: 日志级别(INFO, SUCCESS, WARNING, ERROR)
             message: 日志消息
         """
+        message = str(message)
         log_entry = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "level": level,
@@ -71,7 +72,7 @@ class LogManager:
         self.logs.append(log_entry)
 
         # 打印到控制台
-        print(f"[{log_entry['timestamp']}] [{level}] {message}")
+        print(f"[{log_entry['timestamp']}] [{level}] {message.lstrip()}")
 
         # 异步广播(不阻塞)
         self._schedule_broadcast({

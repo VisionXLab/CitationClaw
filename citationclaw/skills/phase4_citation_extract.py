@@ -47,14 +47,12 @@ class CitationExtractSkill:
         # Determine LLM model: prefer lightweight (dashboard_model), fallback to openai_model
         llm_model = getattr(ctx.config, 'dashboard_model', '') or ctx.config.openai_model
 
-        # Prepare downloader only if Phase 2 didn't pass PDF paths
+        # Prepare downloader only for standalone Phase 4 runs.
+        # In the normal pipeline, Phase 4 must reuse Phase 2's PDF paths and
+        # should not backfill missing paths with a second download attempt.
         downloader = None
-        if not phase2_pdf_paths or any(p is None for p in phase2_pdf_paths):
+        if phase2_pdf_paths is None:
             downloader = PDFDownloader(
-                scraper_api_keys=ctx.config.scraper_api_keys,
-                llm_api_key=ctx.config.openai_api_key,
-                llm_base_url=ctx.config.openai_base_url,
-                llm_model=getattr(ctx.config, 'dashboard_model', '') or ctx.config.openai_model,
                 cdp_debug_port=getattr(ctx.config, 'cdp_debug_port', 0),
             )
 

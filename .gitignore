@@ -24,6 +24,7 @@ data/models/
 data/result-*/
 !data/result-template1/
 !data/result-template2/
+runtime/
 
 # Runtime cache and config
 data/cache/

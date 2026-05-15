@@ -481,10 +481,6 @@ class TaskExecutor:
         self.log_manager.info("=" * 50)
 
         downloader = PDFDownloader(
-            scraper_api_keys=config.scraper_api_keys,
-            llm_api_key=config.openai_api_key,
-            llm_base_url=config.openai_base_url,
-            llm_model=getattr(config, 'dashboard_model', '') or config.openai_model,
             cdp_debug_port=getattr(config, 'cdp_debug_port', 0),
         )
         parser = MinerUParser(
@@ -520,8 +516,7 @@ class TaskExecutor:
             })
 
         # Parallel PDF download — skip self-citations (saves time + bandwidth)
-        # Use 5 workers (not 10) to avoid rate-limiting on S2/Sci-Hub/LLM APIs
-        _DL_CONCURRENCY = 5
+        _DL_CONCURRENCY = 10
         need_download = sum(1 for i in range(len(dl_papers)) if not self_cite_map.get(i, False))
         self.log_manager.info(
             f"[PDF下载] 并行下载 {need_download} 篇非自引论文 "
@@ -531,12 +526,48 @@ class TaskExecutor:
         pdf_paths: List[Optional[Path]] = [None] * len(dl_papers)
         download_indices = [i for i in range(len(dl_papers)) if not self_cite_map.get(i, False)]
         download_batch = [dl_papers[i] for i in download_indices]
+        first_attempt_failures: dict[int, list] = {}
+
+        def _pdf_user_log(message: str):
+            text = str(message).strip()
+            if not text:
+                return
+            lower = text.lower()
+            hidden_markers = (
+                "all sources failed",
+                " failed",
+                "failed ",
+                "timeout",
+                "exception",
+                "unavailable",
+                "not found",
+                "no pii",
+                "no acm doi",
+                "cdp_returned_none",
+                "放弃",
+                "失败",
+                "超时",
+            )
+            if any(marker in lower for marker in hidden_markers):
+                return
+            self.log_manager.info(text)
+
+        def _tag_pdf_failures(failures, attempt: int) -> list:
+            tagged = []
+            for failure in failures or []:
+                if not isinstance(failure, dict):
+                    continue
+                entry = dict(failure)
+                stage = entry.get("stage", "?")
+                entry["stage"] = f"attempt{attempt}/{stage}"
+                tagged.append(entry)
+            return tagged
 
         if download_batch:
             batch_paths = await downloader.batch_download(
                 download_batch,
                 concurrency=_DL_CONCURRENCY,
-                log=self.log_manager.info,
+                log=_pdf_user_log,
             )
             for idx, pdf_path in zip(download_indices, batch_paths):
                 pdf_paths[idx] = pdf_path
@@ -545,13 +576,42 @@ class TaskExecutor:
                     records_data[idx][0]["_pdf_source"] = src
                 failures = dl_papers[idx].get("_pdf_failures")
                 if failures:
+                    if not pdf_path:
+                        first_attempt_failures[idx] = list(failures)
                     records_data[idx][0]["_pdf_failures"] = failures
 
+        retry_indices = [idx for idx in download_indices if pdf_paths[idx] is None]
+        if retry_indices:
+            retry_batch = [dl_papers[i] for i in retry_indices]
+            retry_paths = await downloader.batch_download(
+                retry_batch,
+                concurrency=_DL_CONCURRENCY,
+                log=_pdf_user_log,
+            )
+            retry_success = 0
+            for idx, pdf_path in zip(retry_indices, retry_paths):
+                pdf_paths[idx] = pdf_path
+                src = dl_papers[idx].get("_pdf_source", "")
+                if src:
+                    records_data[idx][0]["_pdf_source"] = src
+                if pdf_path:
+                    retry_success += 1
+
+                combined_failures = (
+                    _tag_pdf_failures(first_attempt_failures.get(idx), 1)
+                    + _tag_pdf_failures(dl_papers[idx].get("_pdf_failures"), 2)
+                )
+                if combined_failures:
+                    dl_papers[idx]["_pdf_failures"] = combined_failures
+                    records_data[idx][0]["_pdf_failures"] = combined_failures
+
+            if retry_success:
+                self.log_manager.info(f"[PDF下载] 补充获取完成，新增 {retry_success} 篇")
+
         downloaded = sum(1 for i, p in enumerate(pdf_paths) if p and not self_cite_map.get(i, False))
-        failed = need_download - downloaded
         self.log_manager.success(
-            f"PDF 下载: {downloaded}/{need_download} 篇成功"
-            f"（{failed} 篇失败, {self_cite_count} 篇自引已跳过）"
+            f"PDF 下载完成：已获取 {downloaded} 篇"
+            f"（{self_cite_count} 篇自引已跳过）"
         )
 
         # Parse + extract authors + cross-validate (parallel, 10 workers for Cloud API)
