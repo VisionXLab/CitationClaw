@@ -60,7 +60,7 @@ class CitationFetchSkill:
         cache = Phase1Cache()
 
         # -- full cache hit: rebuild JSONL from cache, skip scraping --
-        if cache.is_complete(url):
+        if cache.is_complete(url, require_year_traverse=enable_year_traverse):
             ctx.log(f"[Phase1 cache] full hit, skipping scrape: {url[:60]}...")
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(cache.build_jsonl(url), encoding="utf-8")

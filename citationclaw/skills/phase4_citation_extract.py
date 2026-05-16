@@ -68,6 +68,9 @@ class CitationExtractSkill:
                         return
 
                     citing_title = paper.get("Paper_Title", paper.get("title", ""))
+                    current_target_title = str(
+                        paper.get("Citing_Paper") or paper.get("citing_paper") or ""
+                    ).strip() or target_title
 
                     # Tag self-citation papers but still extract citation description
                     is_self = paper.get("Is_Self_Citation")
@@ -81,7 +84,7 @@ class CitationExtractSkill:
                         cached_desc = cache.get(
                             paper.get("Paper_Link", ""),
                             citing_title,
-                            target_title,
+                            current_target_title,
                         )
                         if cached_desc:
                             paper["Citing_Description"] = cached_desc
@@ -96,7 +99,7 @@ class CitationExtractSkill:
                     contexts = await self._get_contexts(
                         i, paper, parser, mineru_parser, parse_cache,
                         downloader, phase2_pdf_paths,
-                        target_title, target_authors, target_year,
+                        current_target_title, target_authors, target_year,
                         ctx, stats,
                     )
 
@@ -104,12 +107,17 @@ class CitationExtractSkill:
                         # LLM extracts description from parsed text
                         description = await self._llm_extract(
                             ctx, prompt_loader, llm_model,
-                            citing_title, target_title, contexts,
+                            citing_title, current_target_title, contexts,
                         )
                         paper["Citing_Description"] = description
                         paper["citing_desc_source"] = "pdf"
                         stats["extracted"] += 1
                     else:
+                        if paper.get("citing_desc_source") == "unavailable":
+                            result_slots[i] = paper
+                            if ctx.progress:
+                                ctx.progress(i + 1, total)
+                            return
                         paper["Citing_Description"] = "未在PDF中找到相关引用描述"
                         paper["citing_desc_source"] = "pdf_no_context"
                         stats["no_context"] += 1
@@ -121,7 +129,7 @@ class CitationExtractSkill:
                             await cache.update(
                                 paper.get("Paper_Link", ""),
                                 citing_title,
-                                target_title,
+                                current_target_title,
                                 desc,
                             )
 

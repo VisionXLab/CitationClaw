@@ -575,9 +575,11 @@ class TaskExecutor:
                 if src:
                     records_data[idx][0]["_pdf_source"] = src
                 failures = dl_papers[idx].get("_pdf_failures")
-                if failures:
-                    if not pdf_path:
-                        first_attempt_failures[idx] = list(failures)
+                if pdf_path:
+                    dl_papers[idx].pop("_pdf_failures", None)
+                    records_data[idx][0].pop("_pdf_failures", None)
+                elif failures:
+                    first_attempt_failures[idx] = list(failures)
                     records_data[idx][0]["_pdf_failures"] = failures
 
         retry_indices = [idx for idx in download_indices if pdf_paths[idx] is None]
@@ -596,14 +598,16 @@ class TaskExecutor:
                     records_data[idx][0]["_pdf_source"] = src
                 if pdf_path:
                     retry_success += 1
-
-                combined_failures = (
-                    _tag_pdf_failures(first_attempt_failures.get(idx), 1)
-                    + _tag_pdf_failures(dl_papers[idx].get("_pdf_failures"), 2)
-                )
-                if combined_failures:
-                    dl_papers[idx]["_pdf_failures"] = combined_failures
-                    records_data[idx][0]["_pdf_failures"] = combined_failures
+                    dl_papers[idx].pop("_pdf_failures", None)
+                    records_data[idx][0].pop("_pdf_failures", None)
+                else:
+                    combined_failures = (
+                        _tag_pdf_failures(first_attempt_failures.get(idx), 1)
+                        + _tag_pdf_failures(dl_papers[idx].get("_pdf_failures"), 2)
+                    )
+                    if combined_failures:
+                        dl_papers[idx]["_pdf_failures"] = combined_failures
+                        records_data[idx][0]["_pdf_failures"] = combined_failures
 
             if retry_success:
                 self.log_manager.info(f"[PDF下载] 补充获取完成，新增 {retry_success} 篇")

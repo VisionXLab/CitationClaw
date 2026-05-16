@@ -126,9 +126,12 @@ class Phase1Cache:
 
     # ─── 查询 ─────────────────────────────────────────────────────────────────
 
-    def is_complete(self, url: str) -> bool:
+    def is_complete(self, url: str, require_year_traverse: bool = False) -> bool:
         entry = self._data.get(self._url_key(url))
         if entry and entry.get("complete"):
+            if require_year_traverse and entry.get("mode") != "year_traverse":
+                self._misses += 1
+                return False
             self._hits += 1
             return True
         self._misses += 1

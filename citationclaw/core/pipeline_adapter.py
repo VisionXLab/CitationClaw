@@ -193,7 +193,7 @@ class PipelineAdapter:
             "PDF_Download": pdf_downloaded,
             "pdf_url": _clean((metadata or {}).get("pdf_url", "")),
             "PDF_Source": _clean(paper.get("_pdf_source", "")),
-            "PDF_Failure_Reasons": _format_pdf_failures(paper.get("_pdf_failures")),
+            "PDF_Failure_Reasons": "" if pdf_downloaded else _format_pdf_failures(paper.get("_pdf_failures")),
             "Data_Sources": ",".join(sources),
             # ── 调试/审计字段（隐藏在最后）──
             "API_Authors": _clean(api_affil_str),
