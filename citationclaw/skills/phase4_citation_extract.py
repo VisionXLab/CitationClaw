@@ -170,6 +170,20 @@ class CitationExtractSkill:
         citing_title = paper.get("Paper_Title", paper.get("title", ""))
         pkey = mineru_parser.paper_key(paper)
 
+        # In the normal pipeline, Phase 4 is constrained by Phase 2's PDF list:
+        # no Phase 2 path means no Phase 4 PDF work for that paper. This avoids
+        # older parse cache entries making Phase 4 process papers Phase 2 did
+        # not download in the current run.
+        pdf_path = None
+        if phase2_pdf_paths is not None:
+            if idx < len(phase2_pdf_paths):
+                pdf_path = phase2_pdf_paths[idx]
+            if not pdf_path:
+                stats["pdf_missing"] += 1
+                paper["Citing_Description"] = "PDF不可用"
+                paper["citing_desc_source"] = "unavailable"
+                return []
+
         # Try 1: MinerU parse cache (already parsed in Phase 2)
         if parse_cache.has(pkey):
             parse_dir = parse_cache.get_parsed_dir(pkey)
@@ -185,11 +199,10 @@ class CitationExtractSkill:
                     return contexts
 
         # Try 2: Phase 2 PDF path (already downloaded)
-        pdf_path = None
-        if phase2_pdf_paths and idx < len(phase2_pdf_paths):
+        if pdf_path is None and phase2_pdf_paths and idx < len(phase2_pdf_paths):
             pdf_path = phase2_pdf_paths[idx]
 
-        # Try 3: Download fresh if no Phase 2 path
+        # Try 3: Download fresh only for standalone Phase 4 runs.
         if not pdf_path and downloader:
             pdf_path = await downloader.download(paper, log=ctx.log)
 
