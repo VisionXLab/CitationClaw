@@ -1679,19 +1679,58 @@ class PDFDownloader:
 
 
     async def batch_download(self, papers: List[dict], concurrency: int = 10,
-                             log=None) -> List[Optional[Path]]:
+                             log=None, label: str = "PDF下载",
+                             per_paper_timeout: Optional[int] = None) -> List[Optional[Path]]:
         sem = asyncio.Semaphore(concurrency)
+        stats = {"done": 0, "success": 0, "timeout": 0}
+        stats_lock = asyncio.Lock()
+        total = len(papers)
+        timeout_seconds = per_paper_timeout or self._PER_PAPER_TIMEOUT
+
+        async def _heartbeat():
+            while True:
+                await asyncio.sleep(60)
+                async with stats_lock:
+                    done = stats["done"]
+                    success = stats["success"]
+                    timeout = stats["timeout"]
+                if done >= total:
+                    return
+                if log:
+                    pending = total - done
+                    log(f"[{label}] 仍在处理：已完成 {done}/{total}，成功 {success}，超时 {timeout}，剩余 {pending}")
+
         async def _dl(p):
             title = p.get("Paper_Title", p.get("title", "?"))[:40]
             async with sem:
                 try:
-                    return await asyncio.wait_for(
+                    result = await asyncio.wait_for(
                         self.download(p, log=log),
-                        timeout=self._PER_PAPER_TIMEOUT,
+                        timeout=timeout_seconds,
                     )
+                    async with stats_lock:
+                        stats["done"] += 1
+                        if result:
+                            stats["success"] += 1
+                    return result
                 except asyncio.TimeoutError:
+                    async with stats_lock:
+                        stats["done"] += 1
+                        stats["timeout"] += 1
+                    if log:
+                        log(f"[{label}] 单篇超时，已跳过: {title}")
                     return None
-        return await asyncio.gather(*[_dl(p) for p in papers])
+
+        heartbeat_task = asyncio.create_task(_heartbeat()) if log and total else None
+        try:
+            return await asyncio.gather(*[_dl(p) for p in papers])
+        finally:
+            if heartbeat_task:
+                heartbeat_task.cancel()
+                try:
+                    await heartbeat_task
+                except asyncio.CancelledError:
+                    pass
 
     async def close(self):
         pass  # Client is created per-download via async context manager

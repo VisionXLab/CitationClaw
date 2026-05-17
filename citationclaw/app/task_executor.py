@@ -589,11 +589,36 @@ class TaskExecutor:
                 tagged.append(entry)
             return tagged
 
+        def _should_retry_pdf_failures(failures) -> bool:
+            transient_statuses = {408, 409, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524}
+            transient_errors = (
+                "timeout",
+                "connect",
+                "network",
+                "remote",
+                "read",
+                "write",
+                "protocol",
+                "proxy",
+            )
+            for failure in failures or []:
+                if not isinstance(failure, dict):
+                    continue
+                status = failure.get("http_status")
+                if isinstance(status, int) and status in transient_statuses:
+                    return True
+                error_type = str(failure.get("error_type", "")).lower()
+                detail = str(failure.get("detail", "")).lower()
+                if any(marker in error_type or marker in detail for marker in transient_errors):
+                    return True
+            return False
+
         if download_batch:
             batch_paths = await downloader.batch_download(
                 download_batch,
                 concurrency=_DL_CONCURRENCY,
                 log=_pdf_user_log,
+                label="PDF下载",
             )
             for idx, pdf_path in zip(download_indices, batch_paths):
                 pdf_paths[idx] = pdf_path
@@ -608,13 +633,25 @@ class TaskExecutor:
                     first_attempt_failures[idx] = list(failures)
                     records_data[idx][0]["_pdf_failures"] = failures
 
-        retry_indices = [idx for idx in download_indices if pdf_paths[idx] is None]
+        failed_indices = [idx for idx in download_indices if pdf_paths[idx] is None]
+        retry_indices = [
+            idx for idx in failed_indices
+            if _should_retry_pdf_failures(first_attempt_failures.get(idx) or dl_papers[idx].get("_pdf_failures"))
+        ]
+        skipped_retry = len(failed_indices) - len(retry_indices)
+        if skipped_retry:
+            self.log_manager.info(
+                f"[PDF下载] {skipped_retry} 篇未命中可用 PDF 源，跳过重复补充；"
+                f"{len(retry_indices)} 篇疑似临时失败进入补充获取"
+            )
         if retry_indices:
             retry_batch = [dl_papers[i] for i in retry_indices]
             retry_paths = await downloader.batch_download(
                 retry_batch,
                 concurrency=_DL_CONCURRENCY,
                 log=_pdf_user_log,
+                label="PDF补充获取",
+                per_paper_timeout=180,
             )
             retry_success = 0
             for idx, pdf_path in zip(retry_indices, retry_paths):
