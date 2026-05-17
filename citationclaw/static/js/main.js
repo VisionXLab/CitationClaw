@@ -475,7 +475,7 @@ async function resultsOpenFolder(folderName, displayName) {
             const date = new Date(file.modified * 1000).toLocaleString('zh-CN');
             const icon = file.type === '.xlsx' ? 'excel' :
                          file.type === '.html' ? 'richtext' : 'code';
-            const safePath = escapeHtml(file.path);
+            const safePath = encodeResultPath(file.path);
             const safeName = escapeHtml(file.name);
             const actionBtn = file.type === '.html'
                 ? `<a href="/api/results/view/${safePath}" target="_blank" class="btn btn-sm btn-primary">
@@ -731,8 +731,6 @@ function initIndexPage() {
                 api_access_token: el('idx-api-access-token')?.value || '',
                 api_user_id: el('idx-api-user-id')?.value || '',
             };
-            // Debug: log what we're about to save
-            if (body.mineru_api_token) console.log('[CONFIG] MinerU token to save:', body.mineru_api_token.substring(0, 8) + '...');
             const cfgResp = await safeFetch('/api/config');
             const existing = await cfgResp.json();
             // 敏感字段：空值不覆盖已有配置
@@ -1347,6 +1345,9 @@ function initIndexPage() {
 
     // 规范化后端返回的文件路径：反斜杠→正斜杠
     function normPath(s) { return s ? s.replace(/\\/g, '/') : ''; }
+    function encodeResultPath(s) {
+        return normPath(s).split('/').map(part => encodeURIComponent(part)).join('/');
+    }
 
     async function showIndexResults(data) {
         resetRunBtn();
@@ -1359,28 +1360,31 @@ function initIndexPage() {
 
         if (data && data.excel) {
             const path = normPath(data.excel);
+            const hrefPath = encodeResultPath(path);
             const name = escapeHtml(path.split('/').pop());
             html += `<div class="result-file-row">
                 <span class="result-file-icon">📊</span>
                 <span class="result-file-name">${name}</span>
-                <a href="/api/results/download/${escapeHtml(path)}" class="btn-download btn-dl-excel" download>
+                <a href="/api/results/download/${hrefPath}" class="btn-download btn-dl-excel" download>
                     <i class="bi bi-download"></i> Excel
                 </a>
             </div>`;
         }
         if (data && data.json) {
             const path = normPath(data.json);
+            const hrefPath = encodeResultPath(path);
             const name = escapeHtml(path.split('/').pop());
             html += `<div class="result-file-row">
                 <span class="result-file-icon">📋</span>
                 <span class="result-file-name">${name}</span>
-                <a href="/api/results/download/${escapeHtml(path)}" class="btn-download btn-dl-json" download>
+                <a href="/api/results/download/${hrefPath}" class="btn-download btn-dl-json" download>
                     <i class="bi bi-download"></i> JSON
                 </a>
             </div>`;
         }
         if (data && data.dashboard) {
             const path = normPath(data.dashboard);
+            const hrefPath = encodeResultPath(path);
             const name = escapeHtml(path.split('/').pop());
             html += `<div class="dashboard-cta">
                 <span class="result-file-icon">🔭</span>
@@ -1388,7 +1392,7 @@ function initIndexPage() {
                     <strong style="color:#bc8cff">多维画像分析报告已生成</strong><br>
                     <span style="font-size:11.5px">${name}</span>
                 </div>
-                <a href="/api/results/view/${escapeHtml(path)}" target="_blank" class="btn-download btn-dl-report">
+                <a href="/api/results/view/${hrefPath}" target="_blank" class="btn-download btn-dl-report">
                     <i class="bi bi-eye"></i> 查看报告
                 </a>
             </div>`;

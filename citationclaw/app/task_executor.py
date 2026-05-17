@@ -72,6 +72,11 @@ class TaskExecutor:
             self._task_finished_payload(status, message, **extra),
         )
 
+    def _data_result_path(self, path) -> Optional[str]:
+        if not path:
+            return None
+        return Path(path).resolve().relative_to(DATA_DIR.resolve()).as_posix()
+
     async def _run_skill(self, skill_name: str, config: AppConfig, **kwargs):
         """Execute one pipeline skill with shared runtime context."""
         result = await self.skills_runtime.run(
@@ -1550,9 +1555,9 @@ class TaskExecutor:
             self.log_manager.success("=" * 50)
 
             await self.log_manager._broadcast({"type": "all_done", "data": {
-                "excel": str(excel_file),
-                "json": str(json_file),
-                "dashboard": str(html_file) if html_file else None,
+                "excel": self._data_result_path(excel_file),
+                "json": self._data_result_path(json_file),
+                "dashboard": self._data_result_path(html_file),
                 "cost_summary": cost_tracker.get_summary(),
             }})
 
@@ -2138,9 +2143,9 @@ class TaskExecutor:
 
             self.log_manager.success("=" * 50)
             await self.log_manager._broadcast({"type": "all_done", "data": {
-                "excel": str(excel_file),
-                "json": str(json_file),
-                "dashboard": str(html_file) if html_file else None,
+                "excel": self._data_result_path(excel_file),
+                "json": self._data_result_path(json_file),
+                "dashboard": self._data_result_path(html_file),
                 "cost_summary": cost_summary,
             }})
 
@@ -2298,9 +2303,9 @@ class TaskExecutor:
             self.log_manager.success("=" * 50)
 
             await self.log_manager._broadcast({"type": "all_done", "data": {
-                "excel": str(citing_desc_excel),
+                "excel": self._data_result_path(citing_desc_excel),
                 "json": None,
-                "dashboard": str(html_file),
+                "dashboard": self._data_result_path(html_file),
                 "cost_summary": None,
             }})
 

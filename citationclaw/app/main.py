@@ -177,9 +177,6 @@ async def get_providers():
 async def save_config(config: ConfigUpdate):
     try:
         data = config.model_dump()
-        token = data.get("mineru_api_token", "")
-        if token:
-            print(f"[CONFIG] MinerU token 已保存: {token[:8]}...({len(token)} chars)")
         new_config = AppConfig(**data)
         config_manager.save(new_config)
         return {"status": "success", "message": "配置已保存"}
@@ -775,12 +772,15 @@ async def list_result_folders():
 async def list_results(folder: str = None):
     results = []
 
+    def data_relative_path(file: Path) -> str:
+        return file.resolve().relative_to(DATA_DIR.resolve()).as_posix()
+
     def add_file(file: Path):
         results.append({
             "name": file.name,
             "size": file.stat().st_size,
             "type": file.suffix,
-            "path": str(file),
+            "path": data_relative_path(file),
             "modified": file.stat().st_mtime
         })
 
@@ -808,7 +808,8 @@ def _safe_data_path(filepath: str) -> Path:
     """Normalize path and verify it's inside DATA_DIR (prevent traversal)."""
     norm = filepath.replace("\\", "/")
     p = Path(norm)
-    resolved = p.resolve()
+    candidate = p if p.is_absolute() else DATA_DIR / p
+    resolved = candidate.resolve()
     try:
         resolved.relative_to(DATA_DIR.resolve())
     except ValueError:
