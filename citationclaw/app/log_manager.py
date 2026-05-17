@@ -16,6 +16,11 @@ class LogManager:
         self.logs = deque(maxlen=max_logs)
         self.websocket_connections: Set[WebSocket] = set()
         self.current_progress = {"current": 0, "total": 100, "percentage": 0}
+        self.suppress_task_logs = False
+
+    def set_task_log_suppressed(self, suppressed: bool):
+        """Suppress normal log printing/broadcasting after user-visible cancellation."""
+        self.suppress_task_logs = suppressed
 
     def add_websocket(self, websocket: WebSocket):
         """添加WebSocket连接"""
@@ -64,6 +69,8 @@ class LogManager:
             message: 日志消息
         """
         message = str(message)
+        if self.suppress_task_logs:
+            return
         log_entry = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "level": level,

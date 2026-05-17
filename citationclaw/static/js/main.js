@@ -891,16 +891,53 @@ function initIndexPage() {
         setTimeout(() => { GlobalProgress.hide(); }, 3000);
     });
 
+    ws.on('task_finished', data => {
+        if (_stuckTimer) clearTimeout(_stuckTimer);
+        stopRunTimer();
+        resetRunBtn();
+        GlobalProgress.hide();
+        document.querySelectorAll('.pipeline-phase').forEach(el => {
+            el.classList.remove('active');
+        });
+        const status = data && data.status ? data.status : 'failed';
+        const message = data && data.message ? data.message : '任务已结束';
+        const level = (status === 'cancelled' || status === 'no_results') ? 'WARNING' : 'ERROR';
+        appendIndexLog({
+            timestamp: new Date().toISOString(),
+            level,
+            message
+        });
+    });
+
     // task_error handler: reset button on server-side errors
     ws.on('task_error', data => {
         if (_stuckTimer) clearTimeout(_stuckTimer);
         stopRunTimer();
         resetRunBtn();
         GlobalProgress.hide();
+        const message = (data && (data.message || data.error)) ? (data.message || data.error) : '任务执行出错，请检查日志后重试。';
         appendIndexLog({
             timestamp: new Date().toISOString(),
             level: 'ERROR',
-            message: (data && data.message) ? data.message : '任务执行出错，请检查日志后重试。'
+            message
+        });
+    });
+
+    ws.on('cancel_requested', data => {
+        if (_stuckTimer) clearTimeout(_stuckTimer);
+        const cancelBtn = document.getElementById('idx-cancel-btn');
+        if (cancelBtn) {
+            cancelBtn.disabled = true;
+            cancelBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 正在停止...';
+        }
+        if (runBtn) {
+            runBtn.disabled = true;
+            runBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 正在停止...';
+        }
+        appendIndexLog({
+            timestamp: new Date().toISOString(),
+            level: 'WARNING',
+            message: data && data.message ? data.message : '已收到取消请求，正在安全停止任务...'
         });
     });
 
@@ -946,6 +983,7 @@ function initIndexPage() {
         }
         GlobalProgress.hide();
         stopRunTimer();
+        resetRunBtn();
         var qeModalEl = document.getElementById('quotaExceededModal');
         if (qeModalEl) {
             const modal = new bootstrap.Modal(qeModalEl);
@@ -995,7 +1033,11 @@ function initIndexPage() {
         runBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="animation:spin .8s linear infinite"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.5" stroke-dasharray="40" stroke-dashoffset="10"/></svg>&nbsp; 运行中...';
 
         var cancelBtn = document.getElementById('idx-cancel-btn');
-        if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+        if (cancelBtn) {
+            cancelBtn.disabled = false;
+            cancelBtn.innerHTML = '<i class="bi bi-x-circle"></i> 取消';
+            cancelBtn.style.display = 'inline-flex';
+        }
         var progressSection = document.getElementById('idx-progress-section');
         if (progressSection) progressSection.style.display = 'block';
         var logSection = document.getElementById('idx-log-section');
@@ -1059,13 +1101,24 @@ function initIndexPage() {
     if (cancelBtnEl) {
         cancelBtnEl.addEventListener('click', async () => {
             if (!confirm('确定要取消当前任务吗？')) return;
+            cancelBtnEl.disabled = true;
+            cancelBtnEl.innerHTML = '<i class="bi bi-hourglass-split"></i> 正在停止...';
+            if (runBtn) {
+                runBtn.disabled = true;
+                runBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 正在停止...';
+            }
             try {
-                await fetch('/api/task/cancel', { method: 'POST' });
+                const resp = await safeFetch('/api/task/cancel', { method: 'POST' });
+                const data = await resp.json();
+                if (data.status !== 'success') {
+                    throw new Error(data.message || '取消请求失败');
+                }
             } catch (e) {
                 console.error('取消失败:', e);
+                alert('取消失败: ' + e.message);
+                resetRunBtn();
+                GlobalProgress.hide();
             }
-            resetRunBtn();
-            GlobalProgress.hide();
         });
     }
 
@@ -1109,7 +1162,11 @@ function initIndexPage() {
         runBtn.disabled = false;
         runBtn.innerHTML = '<i class="bi bi-play-fill"></i> 开始分析';
         var cancelBtn = document.getElementById('idx-cancel-btn');
-        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (cancelBtn) {
+            cancelBtn.disabled = false;
+            cancelBtn.innerHTML = '<i class="bi bi-x-circle"></i> 取消';
+            cancelBtn.style.display = 'none';
+        }
         resetCacheRunBtn();
         const thinking = document.getElementById('rp-thinking-indicator');
         if (thinking) thinking.classList.remove('active');

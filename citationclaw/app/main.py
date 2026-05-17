@@ -64,17 +64,26 @@ def _make_task_done_callback(executor: TaskExecutor, lm: LogManager):
             exc = task.exception()
             if exc:
                 lm.error(f"任务异常终止: {exc}")
-                lm.broadcast_event("task_error", {"error": str(exc)})
+                message = str(exc)
+                lm.broadcast_event("task_error", {"message": message, "error": message})
         except asyncio.CancelledError:
-            pass
+            message = "任务已取消"
+            lm.warning(message)
+            lm.broadcast_event("task_finished", {
+                "status": "cancelled",
+                "message": message,
+                "success": False,
+            })
         finally:
             executor.is_running = False
+            executor.current_task = None
     return _cb
 
 
 def _launch_task(coro):
     """Set is_running, create task, attach done_callback. Returns task."""
     task_executor.is_running = True
+    log_manager.set_task_log_suppressed(False)
     task = asyncio.create_task(coro)
     task.add_done_callback(_make_task_done_callback(task_executor, log_manager))
     task_executor.current_task = task

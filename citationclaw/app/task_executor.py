@@ -55,6 +55,23 @@ class TaskExecutor:
         self._year_traverse_prompted: bool = False  # 本次运行已提示过，不再重复
         self.skills_runtime = SkillsRuntime()
 
+    def _task_finished_payload(self, status: str, message: str, **extra) -> dict:
+        payload = {"status": status, "message": message, "success": status == "success"}
+        payload.update(extra)
+        return payload
+
+    async def _broadcast_task_finished(self, status: str, message: str, **extra):
+        await self.log_manager._broadcast({
+            "type": "task_finished",
+            "data": self._task_finished_payload(status, message, **extra),
+        })
+
+    def _broadcast_task_finished_sync(self, status: str, message: str, **extra):
+        self.log_manager.broadcast_event(
+            "task_finished",
+            self._task_finished_payload(status, message, **extra),
+        )
+
     async def _run_skill(self, skill_name: str, config: AppConfig, **kwargs):
         """Execute one pipeline skill with shared runtime context."""
         result = await self.skills_runtime.run(
@@ -1382,7 +1399,9 @@ class TaskExecutor:
             )
 
             if self.should_cancel:
-                self.log_manager.warning("任务已被用户取消")
+                message = "任务已取消"
+                self.log_manager.warning(message)
+                await self._broadcast_task_finished("cancelled", message)
                 return
 
             self.log_manager.success("Phase 1 · 施引文献检索 完成")
@@ -1405,7 +1424,9 @@ class TaskExecutor:
             )
 
             if self.should_cancel:
-                self.log_manager.warning("任务已被用户取消")
+                message = "任务已取消"
+                self.log_manager.warning(message)
+                await self._broadcast_task_finished("cancelled", message)
                 return
             if self.quota_exceeded_event.is_set():
                 self._handle_quota_exceeded()
@@ -1590,7 +1611,9 @@ class TaskExecutor:
             )
 
             if self.should_cancel:
-                self.log_manager.warning("任务已被用户取消")
+                message = "任务已取消"
+                self.log_manager.warning(message)
+                await self._broadcast_task_finished("cancelled", message)
                 return
 
             self.log_manager.success("=" * 50)
@@ -1712,7 +1735,9 @@ class TaskExecutor:
             )
 
             if self.should_cancel:
-                self.log_manager.warning("任务已被用户取消")
+                message = "任务已取消"
+                self.log_manager.warning(message)
+                await self._broadcast_task_finished("cancelled", message)
                 return
 
             self.log_manager.success("Phase 2 · 作者信息采集 完成")
@@ -1934,6 +1959,12 @@ class TaskExecutor:
                         break
                     citing_files.append((citing_file, canonical))
 
+            if self.should_cancel:
+                message = "任务已取消"
+                self.log_manager.warning(message)
+                await self._broadcast_task_finished("cancelled", message)
+                return
+
             # Guard: 检查 Phase 1 是否爬取到任何引用文献
             _total_citing = 0
             for _cf, _ in citing_files:
@@ -1950,7 +1981,9 @@ class TaskExecutor:
                     except Exception:
                         continue
             if _total_citing == 0:
-                self.log_manager.warning("Phase 1 未爬取到任何引用文献，任务结束")
+                message = "Phase 1 未爬取到任何引用文献，任务结束"
+                self.log_manager.warning(message)
+                await self._broadcast_task_finished("no_results", message)
                 return
 
             # ── New Pipeline: Phase 2 (API metadata) + Phase 3 (scholar assess + export) ──
@@ -1961,8 +1994,15 @@ class TaskExecutor:
                 config=config,
                 canonical_titles=canonical_titles,
             )
+            if self.should_cancel:
+                message = "任务已取消"
+                self.log_manager.warning(message)
+                await self._broadcast_task_finished("cancelled", message)
+                return
             if pipeline_result is None:
-                self.log_manager.warning("管线未产出有效结果，任务结束")
+                message = "管线未产出有效结果，任务结束"
+                self.log_manager.warning(message)
+                await self._broadcast_task_finished("no_results", message)
                 return
             merged_file, excel_file, json_file, phase2_pdf_paths = pipeline_result
 
@@ -1988,6 +2028,11 @@ class TaskExecutor:
                     pdf_paths=phase2_pdf_paths,
                     citation_desc_cache=desc_cache,
                 )
+                if self.should_cancel:
+                    message = "任务已取消"
+                    self.log_manager.warning(message)
+                    await self._broadcast_task_finished("cancelled", message)
+                    return
 
                 # Merge descriptions back into Excel
                 if phase4_output_jsonl.exists():
@@ -2050,6 +2095,11 @@ class TaskExecutor:
                     },
                     skip_citing_analysis=config.dashboard_skip_citing_analysis,
                 )
+                if self.should_cancel:
+                    message = "任务已取消"
+                    self.log_manager.warning(message)
+                    await self._broadcast_task_finished("cancelled", message)
+                    return
 
             # 运行后快照 LLM 额度
             if config.api_access_token and config.api_user_id:
@@ -2132,16 +2182,20 @@ class TaskExecutor:
             # 加载 desc 缓存
             desc_cache_file = DATA_DIR / "cache" / "citing_description_cache.json"
             if not desc_cache_file.exists():
-                self.log_manager.error(f"引用描述缓存不存在: {desc_cache_file}")
-                return {}
+                message = f"引用描述缓存不存在: {desc_cache_file}"
+                self.log_manager.error(message)
+                await self._broadcast_task_finished("failed", message)
+                return {"success": False, "message": message}
             desc_data: dict = _json.loads(desc_cache_file.read_text(encoding="utf-8"))
 
             # 过滤出目标论文的所有引用记录
             target_suffix = "||" + paper_title.strip().lower()
             matches = {k: v for k, v in desc_data.items() if k.lower().endswith(target_suffix)}
             if not matches:
-                self.log_manager.warning(f"缓存中未找到论文「{paper_title}」的任何引用记录")
-                return {}
+                message = f"缓存中未找到论文「{paper_title}」的任何引用记录"
+                self.log_manager.warning(message)
+                await self._broadcast_task_finished("no_results", message)
+                return {"success": False, "message": message}
             self.log_manager.info(f"找到 {len(matches)} 条引用记录")
 
             # 加载 author 缓存
@@ -2256,10 +2310,13 @@ class TaskExecutor:
     def _handle_quota_exceeded(self):
         """Called when any phase signals that API quota is exhausted."""
         self.should_cancel = True
-        self.log_manager.error("API 配额不足，搜索已自动停止。已处理的数据已保存至本地缓存。")
+        message = "API 配额不足，搜索已自动停止。已处理的数据已保存至本地缓存。"
+        detail = "API 配额不足，搜索已自动停止。已处理的数据已保存至本地缓存，充值后重新运行将自动续跑，无需重复花费 Token。"
+        self.log_manager.error(message)
         self.log_manager.broadcast_event("quota_exceeded", {
-            "message": "API 配额不足，搜索已自动停止。已处理的数据已保存至本地缓存，充值后重新运行将自动续跑，无需重复花费 Token。"
+            "message": detail
         })
+        self._broadcast_task_finished_sync("quota_exceeded", detail)
 
     def _filter_by_scholars(self, excel_file: Path, scholar_names: list, result_dir: Path, output_prefix: str) -> Path:
         """从 Excel 中过滤出含指定学者的行"""
@@ -2341,7 +2398,14 @@ class TaskExecutor:
         """取消任务"""
         if self.is_running:
             self.should_cancel = True
-            self.log_manager.warning("正在取消任务...")
+            message = "已收到取消请求，正在安全停止任务..."
+            self.log_manager.warning(message)
+            self.log_manager.broadcast_event("cancel_requested", {"message": message})
+            self.log_manager.set_task_log_suppressed(True)
+            if self.current_task and not self.current_task.done():
+                self.current_task.cancel()
+        else:
+            self._broadcast_task_finished_sync("cancelled", "当前没有正在运行的任务")
 
     def get_status(self) -> dict:
         """
