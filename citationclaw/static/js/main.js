@@ -587,9 +587,16 @@ function initIndexPage() {
             _syncApiKeyType(this);
         });
     }
+    var lightKeyEl = document.getElementById('idx-light-api-key');
+    if (lightKeyEl) {
+        lightKeyEl.addEventListener('input', function () {
+            _syncApiKeyType(this);
+        });
+    }
 
     // ── Provider Preset Selector ──
     let _providerPresets = {};
+    let _searchBaseUrl = 'https://api.gpt.ge/v1/';
     (async () => {
         try {
             const resp = await safeFetch('/api/providers');
@@ -600,7 +607,7 @@ function initIndexPage() {
         }
     })();
 
-    // Provider preset buttons fill section ③ (lightweight model: URL + model name)
+    // Provider preset buttons fill the real lightweight OpenAI-compatible endpoint.
     document.querySelectorAll('.btn-provider-preset').forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
@@ -613,7 +620,7 @@ function initIndexPage() {
             const preset = _providerPresets[provider];
             if (!preset) return;
 
-            // Fill section ③ fields (NOT the search model select)
+            // Fill lightweight runtime fields. Search LLM keeps its own endpoint.
             const urlEl = document.getElementById('idx-openai-url');
             const lightModelEl = document.getElementById('idx-dashboard-model');
 
@@ -648,7 +655,12 @@ function initIndexPage() {
                 el('idx-openai-key').value = cfg.openai_api_key || '';
                 _syncApiKeyType(el('idx-openai-key'));
             }
-            if (el('idx-openai-url')) el('idx-openai-url').value = cfg.openai_base_url || '';
+            _searchBaseUrl = cfg.openai_base_url || _searchBaseUrl;
+            if (el('idx-openai-url')) el('idx-openai-url').value = cfg.light_base_url || cfg.openai_base_url || '';
+            if (el('idx-light-api-key')) {
+                el('idx-light-api-key').value = cfg.light_api_key || '';
+                _syncApiKeyType(el('idx-light-api-key'));
+            }
             if (el('idx-openai-model')) {
                 const searchSelect = el('idx-openai-model');
                 searchSelect.value = cfg.openai_model || '';
@@ -694,8 +706,10 @@ function initIndexPage() {
             const body = {
                 scraper_api_keys: keys,
                 openai_api_key: el('idx-openai-key')?.value || '',
-                openai_base_url: el('idx-openai-url')?.value || '',
+                openai_base_url: _searchBaseUrl,
                 openai_model: el('idx-openai-model')?.value || '',
+                light_api_key: el('idx-light-api-key')?.value || '',
+                light_base_url: el('idx-openai-url')?.value || '',
                 result_folder_prefix: el('idx-result-folder-prefix')?.value || '',
                 default_output_prefix: el('idx-output-prefix')?.value || 'paper',
                 enable_renowned_scholar_filter: el('idx-renowned-scholar')?.checked || false,
@@ -724,6 +738,7 @@ function initIndexPage() {
             // 敏感字段：空值不覆盖已有配置
             if (!body.api_access_token && existing.api_access_token) delete body.api_access_token;
             if (!body.api_user_id && existing.api_user_id) delete body.api_user_id;
+            if (!body.light_api_key && existing.light_api_key) delete body.light_api_key;
             if (!body.s2_api_key && existing.s2_api_key) delete body.s2_api_key;
             if (!body.wos_api_key && existing.wos_api_key) delete body.wos_api_key;
             if (!body.mineru_api_token && existing.mineru_api_token) delete body.mineru_api_token;
@@ -787,17 +802,18 @@ function initIndexPage() {
     window.pretestSearchLLM = function() {
         const el = id => document.getElementById(id);
         const key = el('idx-openai-key')?.value?.trim();
+        const baseUrl = _searchBaseUrl;
         const model = el('idx-openai-model')?.value?.trim();
         if (!key) {
             const box = document.getElementById('pretest-search-result');
             box.style.display = 'block';
             box.className = 'pretest-result error';
-            box.textContent = '请先填写 V-API Key';
+            box.textContent = '请先填写 LLM API Key';
             return;
         }
         _runPretest('/api/pretest/search_llm', {
             api_key: key,
-            base_url: 'https://api.gpt.ge/v1/',
+            base_url: baseUrl,
             model: model || 'gemini-3-flash-preview-search',
         }, 'btn-pretest-search', 'pretest-search-result');
     };
@@ -805,15 +821,15 @@ function initIndexPage() {
     window.pretestLightModel = function() {
         const el = id => document.getElementById(id);
         const lightKey = el('idx-light-api-key')?.value?.trim();
-        const vapiKey = el('idx-openai-key')?.value?.trim();
-        const key = lightKey || vapiKey;
-        const baseUrl = el('idx-openai-url')?.value?.trim() || 'https://api.gpt.ge/v1/';
+        const searchKey = el('idx-openai-key')?.value?.trim();
+        const key = lightKey || searchKey;
+        const baseUrl = lightKey ? (el('idx-openai-url')?.value?.trim() || 'https://api.gpt.ge/v1/') : _searchBaseUrl;
         const model = el('idx-dashboard-model')?.value?.trim() || 'gemini-3-flash-preview-nothinking';
         if (!key) {
             const box = document.getElementById('pretest-light-result');
             box.style.display = 'block';
             box.className = 'pretest-result error';
-            box.textContent = '请先填写 API Key（轻量模型或 V-API）';
+            box.textContent = '请先填写 LLM API Key';
             return;
         }
         _runPretest('/api/pretest/light_model', {

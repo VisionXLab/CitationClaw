@@ -268,8 +268,8 @@ class CitationExtractSkill:
             from citationclaw.core.http_utils import make_async_client
 
             client = AsyncOpenAI(
-                api_key=ctx.config.openai_api_key,
-                base_url=(ctx.config.openai_base_url or "").rstrip("/") + "/",
+                api_key=ctx.config.effective_light_api_key(),
+                base_url=(ctx.config.effective_light_base_url() or "").rstrip("/") + "/",
                 http_client=make_async_client(timeout=60.0),
             )
 

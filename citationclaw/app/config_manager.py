@@ -28,6 +28,8 @@ class AppConfig(BaseModel):
     openai_api_key: str = Field(default="", description="OpenAI兼容的API Key")
     openai_base_url: str = Field(default="https://api.gpt.ge/v1/", description="API Base URL")
     openai_model: str = Field(default="gemini-3-flash-preview-search", description="模型名称")
+    light_api_key: str = Field(default="", description="轻量模型 OpenAI 兼容 API Key，留空则复用 openai_api_key")
+    light_base_url: str = Field(default="", description="轻量模型 API Base URL，留空则复用 openai_base_url")
 
     # 任务配置
     result_folder_prefix: str = Field(default="", description="结果文件夹前缀（留空则默认 result-时间戳）")
@@ -136,6 +138,12 @@ class AppConfig(BaseModel):
 
     dashboard_model: str = Field(default="gemini-3-flash-preview-nothinking",
                                  description="画像报告 LLM 分析使用的模型")
+
+    def effective_light_api_key(self) -> str:
+        return self.light_api_key or self.openai_api_key
+
+    def effective_light_base_url(self) -> str:
+        return self.light_base_url if self.light_api_key else self.openai_base_url
 
     # Semantic Scholar API Key (提升速率限制: 1 req/s → 10-100 req/s)
     s2_api_key: str = Field(default="", description="Semantic Scholar API Key（可选，大幅提升 PDF 下载成功率）")

@@ -108,6 +108,8 @@ class ConfigUpdate(BaseModel):
     openai_api_key: str
     openai_base_url: str
     openai_model: str
+    light_api_key: str = ""
+    light_base_url: str = ""
     result_folder_prefix: str = ""
     default_output_prefix: str = "paper"
     sleep_between_pages: int = 10
@@ -497,7 +499,9 @@ class ChatUIRequest(BaseModel):
 @app.post("/api/chat/ui")
 async def chat_ui(request: ChatUIRequest):
     config = config_manager.get()
-    if not config.openai_api_key or not config.openai_base_url:
+    light_api_key = config.effective_light_api_key()
+    light_base_url = config.effective_light_base_url()
+    if not light_api_key or not light_base_url:
         return JSONResponse(status_code=400,
                             content={"error": "未配置 LLM API"})
 
@@ -507,8 +511,7 @@ async def chat_ui(request: ChatUIRequest):
 
     def _stream():
         try:
-            client = _make_openai_client(config.openai_api_key,
-                                         config.openai_base_url, timeout=60.0)
+            client = _make_openai_client(light_api_key, light_base_url, timeout=60.0)
             stream = client.chat.completions.create(
                 model=config.dashboard_model,
                 messages=messages_to_send,
@@ -526,7 +529,9 @@ async def chat_ui(request: ChatUIRequest):
 @app.post("/api/chat/report")
 async def chat_report(request: ChatReportRequest):
     config = config_manager.get()
-    if not config.openai_api_key or not config.openai_base_url:
+    light_api_key = config.effective_light_api_key()
+    light_base_url = config.effective_light_base_url()
+    if not light_api_key or not light_base_url:
         return JSONResponse(status_code=400,
                             content={"error": "未配置 LLM API"})
 
@@ -539,13 +544,12 @@ async def chat_report(request: ChatReportRequest):
 
     def _stream():
         try:
-            client = _make_openai_client(config.openai_api_key,
-                                         config.openai_base_url, timeout=90.0)
+            light_client = _make_openai_client(light_api_key, light_base_url, timeout=90.0)
 
             needs_search = False
             if search_model and search_model != light_model:
                 try:
-                    cls_resp = client.chat.completions.create(
+                    cls_resp = light_client.chat.completions.create(
                         model=light_model,
                         messages=[
                             {"role": "system",
@@ -562,7 +566,11 @@ async def chat_report(request: ChatReportRequest):
             if needs_search:
                 yield "__SEARCHING__\n"
                 try:
-                    search_resp = client.chat.completions.create(
+                    if not config.openai_api_key or not config.openai_base_url:
+                        raise RuntimeError("未配置 Search LLM API")
+                    search_client = _make_openai_client(config.openai_api_key,
+                                                        config.openai_base_url, timeout=90.0)
+                    search_resp = search_client.chat.completions.create(
                         model=search_model,
                         messages=[{"role": "system", "content": system_prompt}] + history,
                         stream=False, max_tokens=2000,
@@ -578,7 +586,7 @@ async def chat_report(request: ChatReportRequest):
                      "content": (f"用户问：{last_user_msg}\n\n"
                                  f"联网搜索结果如下，请结合报告数据，用简洁专业的语言综合作答：\n\n{raw_answer}")},
                 ]
-                stream = client.chat.completions.create(
+                stream = light_client.chat.completions.create(
                     model=light_model,
                     messages=summarize_msgs,
                     stream=True, max_tokens=1200,
@@ -588,7 +596,7 @@ async def chat_report(request: ChatReportRequest):
                         yield chunk.choices[0].delta.content
 
             else:
-                stream = client.chat.completions.create(
+                stream = light_client.chat.completions.create(
                     model=light_model,
                     messages=[{"role": "system", "content": system_prompt}] + history,
                     stream=True, max_tokens=1500,

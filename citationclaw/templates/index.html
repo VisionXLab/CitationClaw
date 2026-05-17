@@ -141,18 +141,18 @@
            placeholder="ScraperAPI Key（多个用英文逗号分隔）">
   </div>
 
-  <!-- ② V-API -->
+  <!-- ② Search LLM -->
   <div class="api-config-section">
     <div class="api-config-header">
       <span class="api-config-num">②</span>
-      <span class="api-config-title">V-API</span>
+      <span class="api-config-title">Search LLM</span>
       <span class="api-config-desc">— 调用搜索 LLM 识别知名学者（需具备 web search 能力）</span>
       <a href="https://api.gpt.ge/register?aff=qH2n" target="_blank" rel="noopener"
          style="font-size:11px;color:var(--light);text-decoration:underline dotted;margin-left:auto">注册 V-API</a>
     </div>
     <div class="row g-2">
       <div class="col-md-7">
-        <input type="text" id="idx-openai-key" class="form-control" placeholder="V-API Key: sk-..." autocomplete="off">
+        <input type="text" id="idx-openai-key" class="form-control" placeholder="Search LLM API Key: sk-..." autocomplete="off">
       </div>
       <div class="col-md-4" style="display:flex;align-items:center">
         <select id="idx-openai-model" class="form-select" style="font-size:12.5px">
@@ -177,7 +177,7 @@
     <div class="api-config-header">
       <span class="api-config-num">③</span>
       <span class="api-config-title">轻量模型</span>
-      <span class="api-config-desc">— 报告生成 · 引文语境提取（无需 web search，可自由选择服务商）</span>
+      <span class="api-config-desc">— 报告生成 · 引文语境提取；OpenAI 兼容接口，可独立选择服务商</span>
     </div>
     <div class="row g-3">
       <div class="col-md-4">
@@ -186,7 +186,7 @@
       </div>
       <div class="col-md-3">
         <label class="form-label">API Key</label>
-        <input type="text" id="idx-light-api-key" class="form-control" placeholder="留空则复用 V-API Key" autocomplete="off">
+        <input type="text" id="idx-light-api-key" class="form-control" placeholder="留空则复用 Search LLM Key" autocomplete="off">
       </div>
       <div class="col-md-4">
         <label class="form-label">模型名称</label>

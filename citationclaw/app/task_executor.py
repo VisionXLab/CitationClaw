@@ -117,6 +117,10 @@ class TaskExecutor:
             structured_fetcher = StructuredAuthorFetcher(
                 wos_api_key=_wos_key,
                 s2_api_key=_s2_key_for_fetcher,
+                mineru_api_token=getattr(config, 'mineru_api_token', ''),
+                openai_api_key=config.effective_light_api_key(),
+                openai_base_url=config.effective_light_base_url(),
+                model=config.dashboard_model or config.openai_model,
                 log_callback=self.log_manager.info,
             )
             self.log_manager.info(f"📋 WOS 结构化作者提取已启用（WOS + S2 双源融合）")
@@ -506,8 +510,8 @@ class TaskExecutor:
         )
         parse_cache = PDFParseCache()
         author_extractor = PDFAuthorExtractor(
-            api_key=config.openai_api_key,
-            base_url=config.openai_base_url,
+            api_key=config.effective_light_api_key(),
+            base_url=config.effective_light_base_url(),
             model=config.dashboard_model or config.openai_model,  # Use lightweight model
         )
         validator = AffiliationValidator()
@@ -1276,14 +1280,16 @@ class TaskExecutor:
                     fixed += 1
 
         # LLM-based fix for unresolvable cases (batch)
-        if llm_fix_needed and config.openai_api_key:
+        light_api_key = config.effective_light_api_key()
+        light_base_url = config.effective_light_base_url()
+        if llm_fix_needed and light_api_key:
             llm_model = getattr(config, 'dashboard_model', '') or config.openai_model
             try:
                 from openai import AsyncOpenAI
                 from citationclaw.core.http_utils import make_async_client
                 client = AsyncOpenAI(
-                    api_key=config.openai_api_key,
-                    base_url=(config.openai_base_url or "").rstrip("/") + "/",
+                    api_key=light_api_key,
+                    base_url=(light_base_url or "").rstrip("/") + "/",
                     http_client=make_async_client(timeout=30.0),
                 )
                 # Batch all into one LLM call

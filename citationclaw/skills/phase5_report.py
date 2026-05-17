@@ -30,8 +30,8 @@ class ReportGenerateSkill:
         ctx.log("[Phase5] Generating HTML dashboard report...")
 
         gen = DashboardGenerator(
-            api_key=config.openai_api_key,
-            base_url=config.openai_base_url,
+            api_key=config.effective_light_api_key(),
+            base_url=config.effective_light_base_url(),
             model=config.dashboard_model,
             log_callback=ctx.log,
             test_mode=config.test_mode,
