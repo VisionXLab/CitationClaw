@@ -504,6 +504,11 @@ class TaskExecutor:
         # ── Phase 2 · PDF 下载 + 解析 + 交叉验证 ──
         self.log_manager.info("=" * 50)
         self.log_manager.info("Phase 2 · PDF 并行下载 + MinerU 解析 + 作者交叉验证")
+        self.log_manager.warning(
+            "[PDF下载提示] 即将进入 Phase 2 PDF 下载，下载过程中可能会打开浏览器窗口进行自动化下载。"
+            "若出现登录、机构访问、Cloudflare 或验证码页面，请手动完成验证后保持浏览器打开。"
+            "通常情况下，验证只需要完成一次，后续下载会复用登录状态和验证结果。"
+        )
         self.log_manager.info("=" * 50)
 
         downloader = PDFDownloader(
