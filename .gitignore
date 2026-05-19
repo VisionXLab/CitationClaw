@@ -44,8 +44,5 @@ benchmark_papers.py
 benchmark_result.txt
 run_benchmark_baseline.py
 
-# Docs (shared externally, not needed in repo)
-docs/
-
 # Office temp files
 ~$*

@@ -7,10 +7,10 @@ English | [中文](./README.zh-CN.md)
 <div align="center">
   <img src="docs/assets/logo.png" width="60%" alt="CitationClaw Logo"><br>
 
-# CitationClaw: A Lightweight Engine for Discovering Scientific Impact through Citations
+# CitationClaw v2: Turning Every Citation into Explainable Impact
 
-让每一次引用都成为可解释的影响力  
-<em>Turning Every Citation into Explainable Impact</em>
+让每一次引用都成为可解释的影响力<br>
+<em>A citation portrait engine for discovering, explaining, and sharing scientific impact.</em>
 
 [![Homepage](https://img.shields.io/badge/Homepage-CitationClaw-blue)](https://visionxlab.github.io/CitationClaw/)
 [![PyPI](https://img.shields.io/pypi/v/citationclaw?logo=pypi&logoColor=white&color=0073b7)](https://pypi.org/project/citationclaw/)
@@ -19,130 +19,109 @@ English | [中文](./README.zh-CN.md)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://github.com/VisionXLab/CitationClaw/pulls)
 [![Issues](https://img.shields.io/github/issues/VisionXLab/CitationClaw)](https://github.com/VisionXLab/CitationClaw/issues)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![Version](https://img.shields.io/badge/version-2.0.0-brightgreen)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
 ![LLM](https://img.shields.io/badge/LLM-OpenAI%20Compatible-412991?logo=openai&logoColor=white)
 ![ScraperAPI](https://img.shields.io/badge/Crawler-ScraperAPI-FF6B35)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey)](https://creativecommons.org/licenses/by-nc/4.0/)
 
-**Turn Every Citation into Explainable Impact.**  
-Input paper titles (or import from Google Scholar profiles), and generate a full citation portrait report in minutes.
+**Input a paper title or a Google Scholar profile, then generate a shareable citation portrait report.**<br>
+CitationClaw v2 crawls citing papers, collects author and institution metadata, identifies renowned scholars, extracts in-paper citation contexts, and produces a self-contained HTML report for research summaries, grant materials, and academic presentations.
 
 </div>
 
-> ## 🚀 Contribute with PRs
-> CitationClaw is community-driven and PR-friendly.
->
-> - Open an issue: <https://github.com/VisionXLab/CitationClaw/issues>
-> - Submit a PR: <https://github.com/VisionXLab/CitationClaw/pulls>
-> - Good first tasks: docs, UI polish, skill metadata, retry robustness
+---
 
 ## 📢 News
 
-- **2026-03-18**: Released **beta v1.0.9** — Multi-paper dashboard dedup fix (title-based dedup key, correct KG edges); year-traverse no longer persisted across sessions; default parallel workers raised to 10; V-API Key registration link added; timeout log messages during LLM retries; SCOPE section scrollable with expand button; cache write throttling (every 10 items) to prevent large-file slowdowns.
+- **2026-05-18**: Released **v2.0.0** documentation — structured metadata collection, Skills Runtime orchestration, separated search/lightweight model roles, PDF-grounded citation contexts, and documented Basic / Advanced / Full service-tier behavior.
+- **2026-03-18**: Released **beta v1.0.9** — multi-paper dashboard dedup fix, year-traverse session behavior update, default parallel workers raised to 10, cache write throttling, and UI/logging polish.
 - **2026-03-12**: Released **v1.0** — first public release.
 
-## Key Features
+---
 
-- 🧠 **Five-Phase Citation Pipeline**: crawl -> author intelligence -> export -> citing description -> dashboard.
-- 🎯 **Renowned Scholar Focus**: auto-identifies high-impact scholars and generates dedicated outputs.
-- ⚡ **Tiered Analysis Modes**: Basic / Advanced / Full for speed-cost-depth tradeoff.
-- 🔁 **Resumable + Cache-Aware**: supports resume-by-page, author cache, and citing-description cache.
-- 📊 **Shareable HTML Report**: standalone dashboard file, no extra server needed for viewing.
-- 🧩 **Skills Runtime Inside**: keeps five-phase logic while moving execution to modular skills.
+## 🚀 What v2 Changes
 
-## 🏗️ Architecture
+CitationClaw v2 is an architectural upgrade over v1, not just a UI refresh.
 
-CitationClaw keeps deterministic business phases while using a skills-style runtime for orchestration.
+- 🧠 **Structured metadata first**: OpenAlex, Semantic Scholar, arXiv, Web of Science Starter API, and PDF-based fallbacks reduce the instability of fully LLM-driven author lookup.
+- 🧩 **Skills Runtime + TaskExecutor orchestration**: v2 registers replaceable phase skills under SkillsRuntime, while TaskExecutor coordinates the richer structured-metadata, PDF-validation, self-citation, and scholar-assessment path.
+- 🔍 **Separated model roles**: search-capable LLMs handle scholar verification; cheaper lightweight models can handle report generation and citation-context extraction.
+- 📄 **PDF-grounded citation context**: v2 downloads, caches, parses, and reviews citing PDFs to recover actual citation sentences where possible.
+- 📊 **Shareable HTML report**: the final dashboard is a single browser-readable file with charts, knowledge graph, citation descriptions, cost summary, and a report assistant entry point.
 
-```text
-UI/REST/WebSocket
-      │
-      ▼
-TaskExecutor (Orchestrator)
-      │
-      ▼
-Skills Runtime
-  ├─ phase1_citation_fetch
-  ├─ phase2_author_intel
-  ├─ phase3_export
-  ├─ phase4_citation_desc
-  └─ phase5_report_generate
-```
+## 🔄 v1 vs v2
 
-More details: [Technical Report](https://visionxlab.github.io/CitationClaw/technical-report.html)
+| Area | v1 | v2.0.0 |
+|------|----|------------|
+| Execution model | Script-oriented flow with tighter coupling | FastAPI + WebSocket + TaskExecutor + Skills Runtime |
+| Author data | Heavier dependence on LLM web search | Structured APIs first, LLM search as supplement and assessor |
+| Scholar detection | Direct search and summarization | Rule pre-filtering, cached lookup, search verification |
+| Citation context | Result-level summaries | PDF download/parse/review pipeline for in-text citation sentences |
+| Service tiers | Multiple experimental modes | Three-tier config: Basic / Advanced / Full; Advanced scope filtering is defined but still being aligned in the backend |
+| Report | HTML dashboard and spreadsheets | Self-contained citation portrait with graph, citation-context analysis, cost summary, and assistant |
+| Cost control | Mostly manual estimation | Cache reuse, Basic Phase 4 disable switch, quota check, and year-traverse prompt; finer Phase 4 scope filtering is defined but not yet enforced in the backend |
+| Maintainability | Good for fast iteration | Better phase contracts, isolated skills, and testable module boundaries |
 
-## Table of Contents
+## 🧭 Quick Links
 
-- [News](#-news)
-- [Key Features](#key-features)
-- [Architecture](#️-architecture)
-- [Install](#-install)
-- [Quick Start](#-quick-start)
-- [Configuration Highlights](#️-configuration-highlights)
-- [Project Structure](#-project-structure)
-- [Outputs](#-outputs)
-- [Contribute & Roadmap](#-contribute--roadmap)
-- [Community](#-community)
-- [Star History](#-star-history)
-- [Disclaimer](#️-disclaimer)
+| Resource | Description |
+|----------|-------------|
+| [📘 Guidelines](https://visionxlab.github.io/CitationClaw/guidelines.html) | Installation, quick start, configuration, outputs, FAQ, and operation notes |
+| [📊 Report Demo 1](https://visionxlab.github.io/CitationClaw/demo1.html) | Online preview of a generated citation portrait |
+| [📊 Report Demo 2](https://visionxlab.github.io/CitationClaw/demo2.html) | Another generated report example |
+| [📖 User Story](https://visionxlab.github.io/CitationClaw/use-report.html) | A long-form walkthrough from a researcher's perspective |
+| [🔧 Technical Report](https://visionxlab.github.io/CitationClaw/technical-report.html) | Architecture, module boundaries, data flow, and implementation details |
 
 ## 📦 Install
 
-Requires **Python 3.10+** (Python 3.12 recommended).
+Requires **Python 3.10+**. Python 3.12 is recommended.
 
-### Install from PyPI (recommended)
+### PyPI
 
 ```bash
 pip install citationclaw
-citationclaw                  # default: 127.0.0.1:8000
-citationclaw --port 8080      # custom port
+citationclaw
+citationclaw --port 8080
 ```
 
-### Install from source
+The app opens at [http://127.0.0.1:8000](http://127.0.0.1:8000), or the port you specify.
+
+### Source
 
 ```bash
 git clone https://github.com/VisionXLab/CitationClaw.git
 cd CitationClaw
 pip install -r requirements.txt
-python start.py               # default: 127.0.0.1:8000
-python start.py --port 8080
+python -m citationclaw
 ```
 
-## 🚀 Quick Start
-
-For first-time users, follow the complete guide with screenshots:
-
-- [Quick Start (online)](https://visionxlab.github.io/CitationClaw/guidelines.html#installation)
-- [Quick Start (local file)](./docs/guidelines.html#installation)
-
-## ⚙️ Configuration Highlights
-
-- **Required keys**:
-  - `ScraperAPI Key(s)` for Google Scholar crawling
-  - `OpenAI-compatible API Key` for LLM-based analysis
-- **Recommended search model**:
-  - Keep `gemini-3-flash-preview-search` for search-capable stages
-- **Service tiers**:
-  - `Basic`: lower cost and faster for first runs
-  - `Advanced`: citing descriptions for renowned-scholar papers only
-  - `Full`: citing descriptions for all citing papers
-- **For papers with >1000 citations**:
-  - Enable year traverse mode
-
-## 📁 Project Structure
+## 🧩 Five-Phase Pipeline
 
 ```text
-citationclaw/
-├── app/                 # FastAPI app, task orchestration, config, logs
-├── core/                # scraping / search / export / dashboard engines
-├── skills/              # skills runtime and five phase skills
-├── static/              # frontend assets
-├── templates/           # Jinja2 pages
-docs/                    # docs and demos
-test/                    # tests
+Phase 0  Citation entry discovery
+Phase 1  Citing-paper retrieval: Google Scholar + ScraperAPI
+Phase 2  Author and metadata collection: OpenAlex / S2 / arXiv / WOS / PDF
+Phase 3  Scholar impact assessment: pre-filter + Search LLM + cache
+Phase 4  Citation-context extraction: PDF parse + lightweight LLM + review
+Phase 5  Report generation: Excel / JSON / HTML dashboard
 ```
 
-## 📤 Outputs
+SkillsRuntime registers phase skills such as `phase1_citation_fetch`, `phase2_metadata`, `phase3_scholar_assess`, `phase4_citation_extract`, and `phase5_report_generate`. The current full-run path still uses `TaskExecutor._run_new_phase2_and_3()` for the combined structured metadata, PDF validation, self-citation, and scholar-assessment block.
+
+## ⚙️ Service Tiers
+
+| Tier | Best for | Behavior |
+|------|----------|----------|
+| Basic | First runs, cost-sensitive checks, scholar-only impact scans | Retrieves citing papers, collects author metadata, assesses renowned scholars, skips citation-context extraction |
+| Advanced | Understanding how important citing papers discuss a work | Enables citation-context extraction; configured for renowned-only scope, but current backend scope filtering is not yet applied |
+| Full | Grant writing, evaluation, presentations, and complete citation portraits | Runs citation-context extraction for all citing papers; highest cost and longest runtime |
+
+For papers with more than 1000 citations, enable year traversal. It splits Google Scholar queries by year to work around the 1000-result display limit.
+
+> Current implementation note: `Basic` disables Phase 4. `Advanced` records `citing_description_scope=renowned_only` in config, but the current backend path does not yet filter Phase 4 inputs by that scope, so `Advanced` and `Full` both run citation-context extraction on the merged records. The renowned-only filter is a backend alignment item.
+
+## 📤 Outputs and Sharing
 
 Each run creates a timestamped folder under `data/result-{timestamp}/`, usually including:
 
@@ -153,32 +132,58 @@ Each run creates a timestamped folder under `data/result-{timestamp}/`, usually 
 - `paper_results.json`
 - `paper_dashboard.html`
 
-## 🤝 Contribute & Roadmap
+`paper_dashboard.html` is the main shareable artifact. It is a self-contained browser-readable report that can be sent to advisors, collaborators, or evaluators, and can be reused in grant applications, annual reviews, and presentation preparation. Download buttons and AI assistant features work best when the report is opened from the local CitationClaw app; the static charts and report content remain readable when shared offline.
 
-PRs are welcome and appreciated.
+## 🔧 Configuration Highlights
 
-Suggested directions:
+- **ScraperAPI Keys**: required for Google Scholar crawling; multiple keys improve stability.
+- **Search LLM**: required for scholar assessment and verification; must support web search.
+- **Lightweight model**: optional independent model endpoint for report generation and citation-context extraction.
+- **Semantic Scholar API Key**: optional but improves metadata and PDF discovery.
+- **Web of Science Starter API Key**: optional higher-priority structured author extraction.
+- **MinerU API Token**: optional parser for larger or more complex PDFs.
+- **Quota tracking**: optional API relay token/user ID pair for estimating LLM quota consumption after each run.
 
-- richer skill metadata and registry conventions
-- stronger retry and network-failure resilience
-- dashboard readability and UX improvement
-- tests for pipeline contracts and compatibility
-- provider/model compatibility presets
+## 📁 Project Structure
 
-Useful links:
+```text
+citationclaw/
+├── app/                 # FastAPI app, task orchestration, config, logs
+├── core/                # scraping, metadata, PDF, export, dashboard engines
+├── skills/              # Skills Runtime and phase skills
+├── static/              # frontend assets
+├── templates/           # Jinja2 pages
+docs/                    # documentation site and demos
+test/                    # tests
+```
 
-- Issues: <https://github.com/VisionXLab/CitationClaw/issues>
-- Pull Requests: <https://github.com/VisionXLab/CitationClaw/pulls>
-- Guidelines: <https://visionxlab.github.io/CitationClaw/guidelines.html>
+## 📚 Citation
+
+If CitationClaw helps your research, reporting, or evaluation workflow, please cite the project:
+
+```bibtex
+@software{citationclaw2026,
+  title        = {CitationClaw: Turning Every Citation into Explainable Impact},
+  author       = {Yang, Qihao and Fan, Ziqian and Gong, Ziyang and Yang, Xue},
+  year         = {2026},
+  version      = {2.0.0},
+  url          = {https://github.com/VisionXLab/CitationClaw},
+  institution  = {Shanghai Jiao Tong University, VisionXLab}
+}
+```
 
 ## 🌍 Community
 
 - Product update: [减论 reduct.cn](https://www.reduct.cn/)
-- User group (CN):
+- User group in China:
 
 <div align="center">
   <img src="docs/assets/group.jpg" width="200" alt="User Group QR">
 </div>
+
+## ⚠️ Disclaimer
+
+CitationClaw is intended for academic research and personal study. Follow the terms of Google Scholar, ScraperAPI, OpenAlex, Semantic Scholar, arXiv, Web of Science, MinerU, and your selected LLM provider. Author identities, citation contexts, and impact analysis should be treated as assistive outputs and manually verified before formal use. The authors are not responsible for consequences arising from use of this tool.
 
 ## ⭐ Star History
 
@@ -187,4 +192,3 @@ Useful links:
 [![Star History Chart](https://api.star-history.com/svg?repos=VisionXLab/CitationClaw&type=Date)](https://star-history.com/#VisionXLab/CitationClaw&Date)
 
 </div>
-
