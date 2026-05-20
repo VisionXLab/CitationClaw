@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import pytest
 from citationclaw.core.pdf_downloader import (
     PDFDownloader, _transform_url, _extract_pdf_url_from_html, _build_cvf_candidates,
+    _detect_publisher, _publisher_from_doi,
 )
 
 
@@ -21,6 +22,29 @@ def test_cache_path_title_fallback(tmp_path):
     paper = {"title": "My Paper Title"}
     path = dl._cache_path(paper)
     assert path.suffix == ".pdf"
+
+
+def test_init_without_slow_fallback_config(tmp_path):
+    dl = PDFDownloader(cache_dir=tmp_path)
+    assert dl._scraper_keys == []
+    assert dl._llm_key == ""
+    assert dl._llm_base_url == ""
+    assert dl._llm_model == ""
+
+
+def test_publisher_detection_helpers():
+    assert _detect_publisher("https://ieeexplore.ieee.org/document/123") == "ieee"
+    assert _detect_publisher("https://www.sciencedirect.com/science/article/pii/S123") == "elsevier"
+    assert _detect_publisher("https://dl.acm.org/doi/10.1145/123") == "acm"
+    assert _detect_publisher("https://link.springer.com/article/10.1007/test") == "springer"
+    assert _detect_publisher("https://onlinelibrary.wiley.com/doi/10.1002/test") == "wiley"
+    assert _detect_publisher("https://openreview.net/forum?id=abc") == "unknown"
+    assert _publisher_from_doi("10.1109/test") == "ieee"
+    assert _publisher_from_doi("10.1016/j.test") == "elsevier"
+    assert _publisher_from_doi("10.1145/123") == "acm"
+    assert _publisher_from_doi("10.1007/test") == "springer"
+    assert _publisher_from_doi("10.1002/test") == "wiley"
+    assert _publisher_from_doi("10.48550/arXiv.1234") == "unknown"
 
 
 def test_transform_url_cvf():

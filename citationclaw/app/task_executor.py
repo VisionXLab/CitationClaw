@@ -512,6 +512,10 @@ class TaskExecutor:
         self.log_manager.info("=" * 50)
 
         downloader = PDFDownloader(
+            scraper_api_keys=config.scraper_api_keys,
+            llm_api_key=config.openai_api_key,
+            llm_base_url=config.openai_base_url,
+            llm_model=getattr(config, 'dashboard_model', '') or config.openai_model,
             cdp_debug_port=getattr(config, 'cdp_debug_port', 0),
         )
         parser = MinerUParser(

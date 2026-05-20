@@ -92,7 +92,85 @@ _SOURCE_LABELS = {
     "gs_versions": "GS版本页",
     "oa_pdf": "OpenAlex开放获取",
     "unpaywall": "Unpaywall",
+    "scraper_smart": "ScraperAPI smart fallback",
+    "scraper_ieee": "ScraperAPI IEEE",
+    "scraper_springer": "ScraperAPI Springer",
+    "scraper_elsevier": "ScraperAPI Elsevier",
+    "scraper_acm": "ScraperAPI ACM",
+    "scraper_wiley": "ScraperAPI Wiley",
+    "scraper_publisher": "ScraperAPI publisher",
 }
+
+
+def _detect_publisher(url: str) -> str:
+    """Detect publisher from URL. Returns ieee/springer/elsevier/acm/wiley/unknown."""
+    if not url:
+        return "unknown"
+    host = urlparse(url).netloc.lower()
+    if "ieee" in host:
+        return "ieee"
+    if "springer" in host or "springerlink" in host:
+        return "springer"
+    if "sciencedirect" in host or "elsevier" in host:
+        return "elsevier"
+    if "acm.org" in host:
+        return "acm"
+    if "wiley" in host:
+        return "wiley"
+    return "unknown"
+
+
+def _publisher_from_doi(doi: str) -> str:
+    """Guess publisher from DOI prefix."""
+    if not doi:
+        return "unknown"
+    doi_lower = doi.lower()
+    if doi_lower.startswith("10.1109/"):
+        return "ieee"
+    if doi_lower.startswith("10.1007/"):
+        return "springer"
+    if doi_lower.startswith("10.1016/"):
+        return "elsevier"
+    if doi_lower.startswith("10.1145/"):
+        return "acm"
+    if doi_lower.startswith("10.1002/"):
+        return "wiley"
+    return "unknown"
+
+
+_SCRAPER_PUBLISHER_PROFILES = {
+    "ieee": {
+        "render": "true",
+        "ultra_premium": "true",
+        "country_code": "us",
+        "keep_headers": "true",
+    },
+    "elsevier": {
+        "premium": "true",
+        "country_code": "us",
+    },
+    "springer": {
+        "render": "true",
+        "premium": "true",
+        "country_code": "us",
+    },
+    "acm": {
+        "render": "true",
+        "premium": "true",
+        "country_code": "us",
+    },
+    "wiley": {
+        "render": "true",
+        "ultra_premium": "true",
+        "country_code": "us",
+    },
+    "_default": {
+        "render": "true",
+        "premium": "true",
+        "country_code": "us",
+    },
+}
+
 
 # ── Proxy detection (same as PaperRadar: skip socks, use HTTP) ─────────
 _HTTP_PROXY = None
@@ -615,10 +693,16 @@ class PDFDownloader:
     _cdp_lock = asyncio.Lock()
 
     def __init__(self, cache_dir: Optional[Path] = None, email: Optional[str] = None,
+                 scraper_api_keys: Optional[list] = None,
+                 llm_api_key: str = "", llm_base_url: str = "", llm_model: str = "",
                  cdp_debug_port: int = 0):
         self._cache_dir = cache_dir or DEFAULT_CACHE_DIR
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._email = email or "citationclaw@research.tool"
+        self._scraper_keys = scraper_api_keys or []
+        self._llm_key = llm_api_key
+        self._llm_base_url = llm_base_url
+        self._llm_model = llm_model
         self._cdp_debug_port = cdp_debug_port
 
     @staticmethod
@@ -843,6 +927,353 @@ class PDFDownloader:
 
 
     # ── Main download method (PaperRadar-style smart download) ────────
+    def _scraper_build_url(self, target_url: str, publisher: str,
+                           session_number: Optional[int] = None) -> Optional[str]:
+        """Build ScraperAPI URL with publisher-specific profile."""
+        if not self._scraper_keys:
+            return None
+        key = self._scraper_keys[0]
+        profile = _SCRAPER_PUBLISHER_PROFILES.get(
+            publisher, _SCRAPER_PUBLISHER_PROFILES["_default"]
+        )
+        params = [f"api_key={key}", f"url={quote(target_url)}"]
+        for k, v in profile.items():
+            params.append(f"{k}={v}")
+        if session_number is not None:
+            params.append(f"session_number={session_number}")
+        return "https://api.scraperapi.com?" + "&".join(params)
+
+    async def _scraper_publisher_download(self, url: str, doi: str = "",
+                                          log=None) -> Optional[bytes]:
+        """Download PDF from a known publisher through ScraperAPI."""
+        if not self._scraper_keys:
+            return None
+
+        publisher = _detect_publisher(url)
+        if publisher == "unknown" and doi:
+            publisher = _publisher_from_doi(doi)
+        if publisher == "unknown":
+            return None
+
+        session_num = random.randint(100000, 999999)
+
+        from citationclaw.core.http_utils import make_async_client
+        client = make_async_client(timeout=90.0)
+
+        try:
+            original_url = url
+            transformed_url = _transform_url(url)
+            scraper_url = self._scraper_build_url(original_url, publisher, session_num)
+            if not scraper_url:
+                await client.aclose()
+                return None
+
+            if log:
+                log(f"    [ScraperAPI] {publisher.upper()} render: {original_url[:80]}...")
+
+            resp = await client.get(scraper_url)
+            if resp.status_code != 200:
+                if log:
+                    log(f"    [ScraperAPI] {publisher.upper()} render HTTP {resp.status_code}")
+                if transformed_url != original_url:
+                    scraper_url2 = self._scraper_build_url(transformed_url, publisher, session_num)
+                    if scraper_url2:
+                        if log:
+                            log(f"    [ScraperAPI] {publisher.upper()} direct: {transformed_url[:80]}...")
+                        resp2 = await client.get(scraper_url2)
+                        if resp2.status_code == 200 and resp2.content[:5] == b"%PDF-" and len(resp2.content) > 1000:
+                            await client.aclose()
+                            return resp2.content
+                await client.aclose()
+                return None
+
+            if resp.content[:5] == b"%PDF-" and len(resp.content) > 1000:
+                await client.aclose()
+                return resp.content
+
+            html = resp.text
+            if len(html) < 200:
+                await client.aclose()
+                return None
+
+            pdf_link = None
+            if publisher == "ieee":
+                pdf_link = self._extract_ieee_pdf(html, original_url)
+            elif publisher == "elsevier":
+                pdf_link = self._extract_elsevier_pdf(html, original_url)
+            elif publisher == "springer":
+                pdf_link = self._extract_springer_pdf(html, original_url, doi)
+
+            if not pdf_link:
+                pdf_link = _extract_pdf_url_from_html(html, original_url)
+            if not pdf_link and transformed_url != original_url:
+                pdf_link = transformed_url
+            if not pdf_link and self._llm_key and len(html) > 1000:
+                pdf_link = await self._llm_find_pdf_link(html, original_url)
+
+            if not pdf_link:
+                if log:
+                    log(f"    [ScraperAPI] {publisher.upper()} no PDF link found")
+                await client.aclose()
+                return None
+
+            if log:
+                log(f"    [ScraperAPI] {publisher.upper()} PDF link: {pdf_link[:80]}...")
+
+            pdf_scraper_url = self._scraper_build_url(pdf_link, publisher, session_num)
+            if pdf_scraper_url:
+                pdf_resp = await client.get(pdf_scraper_url)
+                if pdf_resp.status_code == 200 and pdf_resp.content[:5] == b"%PDF-" and len(pdf_resp.content) > 1000:
+                    await client.aclose()
+                    return pdf_resp.content
+
+                if pdf_resp.status_code == 200 and publisher == "ieee" and pdf_resp.content[:5] != b"%PDF-":
+                    inner_link = self._extract_ieee_pdf(pdf_resp.text, pdf_link)
+                    if inner_link:
+                        inner_url = self._scraper_build_url(inner_link, publisher, session_num)
+                        if inner_url:
+                            inner_resp = await client.get(inner_url)
+                            if (inner_resp.status_code == 200
+                                    and inner_resp.content[:5] == b"%PDF-"
+                                    and len(inner_resp.content) > 1000):
+                                await client.aclose()
+                                return inner_resp.content
+
+            try:
+                direct_resp = await client.get(pdf_link)
+                if (direct_resp.status_code == 200
+                        and direct_resp.content[:5] == b"%PDF-"
+                        and len(direct_resp.content) > 1000):
+                    await client.aclose()
+                    return direct_resp.content
+            except Exception:
+                pass
+
+            await client.aclose()
+            return None
+
+        except Exception as e:
+            if log:
+                log(f"    [ScraperAPI] {publisher.upper()} exception: {str(e)[:60]}")
+            try:
+                await client.aclose()
+            except Exception:
+                pass
+            return None
+
+    @staticmethod
+    def _extract_ieee_pdf(html: str, base_url: str) -> Optional[str]:
+        """Extract PDF URL from IEEE Xplore rendered HTML."""
+        parsed = urlparse(base_url)
+        base_origin = f"{parsed.scheme}://{parsed.netloc}"
+
+        def _abs(u):
+            if u.startswith("//"):
+                return f"https:{u}"
+            if u.startswith("/"):
+                return f"{base_origin}{u}"
+            return u
+
+        for pat in [r'"pdfUrl"\s*:\s*"(.*?)"', r'"stampUrl"\s*:\s*"(.*?)"',
+                    r'"pdfPath"\s*:\s*"(.*?)"']:
+            m = re.search(pat, html)
+            if m:
+                return _abs(m.group(1))
+
+        for pat in [r'<iframe[^>]+src=["\']([^"\']*(?:getPDF|\.pdf)[^"\']*)["\']',
+                    r'<embed[^>]+src=["\']([^"\']*(?:getPDF|\.pdf)[^"\']*)["\']',
+                    r'src=["\']([^"\']*getPDF\.jsp[^"\']*)["\']']:
+            m = re.search(pat, html, re.I)
+            if m:
+                return _abs(m.group(1))
+
+        m = re.search(r'"(https?://[^"]*iel[x7][^"]*\.pdf[^"]*)"', html)
+        if m:
+            return m.group(1)
+
+        m = re.search(r'<meta\s+name=["\']citation_pdf_url["\']\s+content=["\'](.*?)["\']', html, re.I)
+        if m:
+            return _abs(m.group(1))
+
+        m = re.search(r'"arnumber"\s*:\s*"?(\d+)"?', html)
+        if m:
+            return f"https://ieeexplore.ieee.org/stampPDF/getPDF.jsp?arnumber={m.group(1)}"
+
+        return None
+
+    @staticmethod
+    def _extract_elsevier_pdf(html: str, base_url: str) -> Optional[str]:
+        """Extract PDF URL from ScienceDirect rendered HTML."""
+        parsed = urlparse(base_url)
+        base_origin = f"{parsed.scheme}://{parsed.netloc}"
+
+        def _abs(u):
+            if u.startswith("//"):
+                return f"https:{u}"
+            if u.startswith("/"):
+                return f"{base_origin}{u}"
+            return u
+
+        for pat in [r'"pdfLink"\s*:\s*"(.*?)"',
+                    r'"linkToPdf"\s*:\s*"(.*?)"',
+                    r'"pdfUrl"\s*:\s*"(.*?)"',
+                    r'"pdfDownloadUrl"\s*:\s*"(.*?)"']:
+            m = re.search(pat, html)
+            if m:
+                url = m.group(1).replace('\\u002F', '/')
+                return _abs(url)
+
+        m = re.search(r'<meta\s+name=["\']citation_pdf_url["\']\s+content=["\'](.*?)["\']', html, re.I)
+        if m:
+            return _abs(m.group(1))
+
+        m = re.search(r'href=["\'](https?://[^"\']*?/pii/[^"\']*?/pdfft[^"\']*)["\']', html, re.I)
+        if m:
+            return m.group(1)
+
+        m = re.search(r'/pii/(S\d{15,})', base_url)
+        if m:
+            return f"https://www.sciencedirect.com/science/article/pii/{m.group(1)}/pdfft?isDTMRedir=true&download=true"
+
+        return None
+
+    @staticmethod
+    def _extract_springer_pdf(html: str, base_url: str, doi: str = "") -> Optional[str]:
+        """Extract PDF URL from Springer rendered HTML."""
+        parsed = urlparse(base_url)
+        base_origin = f"{parsed.scheme}://{parsed.netloc}"
+
+        def _abs(u):
+            if u.startswith("//"):
+                return f"https:{u}"
+            if u.startswith("/"):
+                return f"{base_origin}{u}"
+            return u
+
+        m = re.search(r'<meta\s+name=["\']citation_pdf_url["\']\s+content=["\'](.*?)["\']', html, re.I)
+        if m:
+            return _abs(m.group(1))
+
+        m = re.search(r'href=["\'](https?://link\.springer\.com/content/pdf/[^"\']+)["\']', html, re.I)
+        if m:
+            return m.group(1)
+
+        for pat in [r'href=["\']([^"\']*?\.pdf[^"\']*)["\'][^>]*>.*?(?:Download|PDF)',
+                    r'data-article-pdf=["\']([^"\']+)["\']']:
+            m = re.search(pat, html, re.I | re.S)
+            if m:
+                return _abs(m.group(1))
+
+        if doi:
+            clean_doi = doi.replace("https://doi.org/", "").replace("http://doi.org/", "").strip()
+            return f"https://link.springer.com/content/pdf/{clean_doi}.pdf"
+
+        return None
+
+    async def _smart_scraper_download(self, url: str) -> Optional[bytes]:
+        """Last-resort render for non-publisher pages, then extract a PDF link."""
+        if not self._scraper_keys:
+            return None
+
+        key = self._scraper_keys[0]
+        scraper_url = (
+            f"https://api.scraperapi.com?api_key={key}"
+            f"&url={quote(url)}&render=true&country_code=us"
+        )
+
+        try:
+            from citationclaw.core.http_utils import make_async_client
+            client = make_async_client(timeout=60.0)
+
+            resp = await client.get(scraper_url)
+            if resp.status_code != 200:
+                await client.aclose()
+                return None
+
+            if resp.content[:5] == b"%PDF-":
+                await client.aclose()
+                return resp.content
+
+            html = resp.text
+            if len(html) < 500:
+                await client.aclose()
+                return None
+
+            pdf_link = _extract_pdf_url_from_html(html, url)
+            if not pdf_link and self._llm_key and len(html) > 1000:
+                pdf_link = await self._llm_find_pdf_link(html, url)
+
+            if not pdf_link:
+                await client.aclose()
+                return None
+
+            pdf_scraper_url = (
+                f"https://api.scraperapi.com?api_key={key}"
+                f"&url={quote(pdf_link)}&render=false"
+            )
+            pdf_resp = await client.get(pdf_scraper_url)
+            if pdf_resp.status_code == 200 and pdf_resp.content[:5] == b"%PDF-":
+                await client.aclose()
+                return pdf_resp.content
+
+            cookies = _get_cookies_for_url(pdf_link)
+            pdf_resp2 = await client.get(pdf_link, cookies=cookies)
+            await client.aclose()
+            if pdf_resp2.status_code == 200 and pdf_resp2.content[:5] == b"%PDF-":
+                return pdf_resp2.content
+
+        except Exception:
+            pass
+        return None
+
+    async def _llm_find_pdf_link(self, html: str, page_url: str) -> Optional[str]:
+        """Use lightweight LLM to find a PDF link in rendered HTML."""
+        if not self._llm_key:
+            return None
+        http_client = None
+        try:
+            from openai import AsyncOpenAI
+            from citationclaw.core.http_utils import make_async_client
+
+            links = re.findall(r'<a[^>]*href=["\']([^"\']+)["\'][^>]*>([^<]*)</a>', html[:50000])
+            metas = re.findall(r'<meta[^>]*content=["\']([^"\']+)["\'][^>]*>', html[:10000])
+            buttons = re.findall(r'<button[^>]*>([^<]*)</button>', html[:20000])
+
+            context = f"Page URL: {page_url}\n\nLinks found:\n"
+            for href, text in links[:50]:
+                if any(k in href.lower() or k in text.lower()
+                       for k in ["pdf", "download", "full", "view", "access"]):
+                    context += f"  {text.strip()} -> {href}\n"
+
+            context += f"\nMeta tags: {metas[:10]}\nButtons: {buttons[:10]}"
+
+            http_client = make_async_client(timeout=15.0)
+            client = AsyncOpenAI(
+                api_key=self._llm_key,
+                base_url=self._llm_base_url.rstrip("/") + "/" if self._llm_base_url else None,
+                http_client=http_client,
+            )
+            resp = await client.chat.completions.create(
+                model=self._llm_model,
+                messages=[{"role": "user", "content":
+                    f"From this academic paper page, find the direct PDF download URL.\n\n"
+                    f"{context}\n\n"
+                    f"Output ONLY the URL, nothing else. If no PDF link found, output 'NONE'."}],
+                temperature=0.0,
+            )
+            result = resp.choices[0].message.content.strip()
+            if result and result != "NONE" and result.startswith("http"):
+                return result
+        except Exception:
+            pass
+        finally:
+            if http_client is not None:
+                try:
+                    await http_client.aclose()
+                except Exception:
+                    pass
+        return None
+
     async def download(self, paper: dict, log=None) -> Optional[Path]:
         """Smart multi-source PDF download. Returns cached path or None."""
         title = (_paper_title(paper) or "?")[:40]
@@ -1088,6 +1519,44 @@ class PDFDownloader:
                              or doi.startswith("10.1016/")
                              or doi.startswith("10.1145/")):
             PDFDownloader._record_failure(paper, "CDP", reason="cdp_not_configured")
+
+        _pub_from_link = _detect_publisher(paper_link)
+        _pub_from_doi = _publisher_from_doi(doi)
+        _is_publisher_paper = (_pub_from_link != "unknown" or _pub_from_doi != "unknown")
+
+        # 15. old-v2 slow fallback: ScraperAPI publisher download.
+        if _is_publisher_paper and self._scraper_keys:
+            if paper_link and "scholar.google" not in paper_link:
+                source = f"scraper_{_pub_from_link if _pub_from_link != 'unknown' else _pub_from_doi}"
+                data = await self._scraper_publisher_download(paper_link, doi, log=log)
+                if _ok(data, source):
+                    return cached
+                if data is None:
+                    PDFDownloader._record_failure(paper, "scraper_publisher",
+                                                  reason="no_pdf_from_paper_link",
+                                                  url=paper_link[:120])
+
+            if doi and not (paper_link and _pub_from_link != "unknown"):
+                doi_url = f"https://doi.org/{doi}"
+                source = f"scraper_{_pub_from_doi if _pub_from_doi != 'unknown' else 'publisher'}"
+                data = await self._scraper_publisher_download(doi_url, doi, log=log)
+                if _ok(data, source):
+                    return cached
+                if data is None:
+                    PDFDownloader._record_failure(paper, "scraper_publisher",
+                                                  reason="no_pdf_from_doi",
+                                                  url=doi_url[:120])
+
+        # 16. old-v2 slow fallback: render non-publisher pages with ScraperAPI.
+        if (paper_link and "scholar.google" not in paper_link
+                and not _is_publisher_paper and self._scraper_keys):
+            data = await self._smart_scraper_download(paper_link)
+            if _ok(data, "scraper_smart"):
+                return cached
+            if data is None:
+                PDFDownloader._record_failure(paper, "scraper_smart",
+                                              reason="no_pdf_from_rendered_page",
+                                              url=paper_link[:120])
 
         return None
 
