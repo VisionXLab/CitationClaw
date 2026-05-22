@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CitationClaw Guidelines</title>
   <link rel="icon" href="assets/head_logo.png">
-  <meta name="description" content="CitationClaw 项目指南：安装、快速开始、配置、API 支持、版本历史与运维建议。">
+  <meta name="description" content="CitationClaw v2 项目指南：Quick Start、服务层级、Search/Light 模型配置、PDF 引文语境、缓存复用、接口清单与排障建议。">
   <style>
     :root {
       --bg: #f6f8fc;
@@ -266,62 +266,65 @@
     <main class="content">
       <div class="hero">
         <h2>CitationClaw 项目指南（Guidelines）</h2>
-        <p>基于 CitationClaw v2 源码与 README 的系统化文档，强调快速上手、配置边界、接口能力、版本差异和稳定运行策略。</p>
+        <p>面向 CitationClaw v2.0.0 的完整使用说明，覆盖从首次配置、三档服务、PDF-grounded 引文语境，到缓存复用、报告问答与接口清单。</p>
       </div>
 
       <section id="overview">
         <h2>1. 文档定位与适用范围</h2>
         <p>本指南面向三类用户：</p>
         <ul>
-          <li>使用者：希望快速跑通论文被引画像分析；</li>
-          <li>维护者：希望理解配置、阶段流程、故障处理与成本控制；</li>
-          <li>开发者：希望扩展接口、替换模型、调整抓取与报告链路。</li>
+          <li>使用者：希望快速跑通论文被引画像分析，并理解每个配置会影响什么；</li>
+          <li>维护者：希望对齐当前 v2 流水线、服务层级、缓存与故障处理口径；</li>
+          <li>开发者：希望扩展接口、替换模型、调整抓取、PDF 解析与报告链路。</li>
         </ul>
-        <p>文档内容覆盖 Quick Start、版本演进、关键设置、API 支持、输出产物、排障与维护建议。</p>
+        <p>README 和项目主页适合快速了解，本文档是实际运行时的权威配置指南。</p>
       </section>
 
       <section id="architecture">
         <h2>2. 项目剖析（架构与流程）</h2>
 
         <h3 id="architecture-pipeline">2.1 五阶段流水线</h3>
-        <p>核心执行逻辑位于 <span class="inline">citationclaw/app/task_executor.py</span>，标准流程如下：</p>
+        <p>核心执行逻辑位于 <span class="inline">citationclaw/app/task_executor.py</span>，当前完整运行路径如下：</p>
         <ol>
-          <li><span class="tag">Phase 1</span>引用抓取：基于 ScraperAPI 抓取 Google Scholar 引用列表；</li>
-          <li><span class="tag">Phase 2</span>作者与元数据采集：优先使用 OpenAlex / Semantic Scholar / arXiv / WOS 等结构化来源，并结合 PDF 兜底；</li>
-          <li><span class="tag">Phase 3</span>学者影响力评估与导出：预过滤候选学者，调用 Search LLM 核验身份，并导出 Excel / JSON；</li>
-          <li><span class="tag">Phase 4</span>引文语境提取（可选）：下载和解析施引论文 PDF，定位引用原句、章节位置与态度；</li>
-          <li><span class="tag">Phase 5</span>画像报告（可选）：生成可直接分享的 HTML Dashboard。</li>
+          <li><span class="tag">Phase 1</span>施引文献检索：基于 ScraperAPI 抓取 Google Scholar 引用列表，支持题目输入、Scholar 主页导入、多论文与年份遍历；</li>
+          <li><span class="tag">Phase 2</span>作者与元数据采集：优先使用 OpenAlex / Semantic Scholar / arXiv / Web of Science 等结构化来源，并下载 PDF 作为作者单位兜底；</li>
+          <li><span class="tag">Phase 3</span>学者影响力评估与导出：通过规则预过滤、Search LLM 核验与缓存复用识别院士、Fellow、杰青等高影响力学者；</li>
+          <li><span class="tag">Phase 4</span>引文语境提取（可选）：复用 Phase 2 PDF，解析正文并用轻量模型抽取引用原句、章节位置与态度；</li>
+          <li><span class="tag">Phase 5</span>画像报告生成（可选）：导出 Excel / JSON，并生成可分享的单文件 HTML Dashboard。</li>
         </ol>
         <div class="note">
-          项目支持“题目直接输入 + Google Scholar 主页批量导入”两种入口，并支持多论文与别名归并。相比 v1，v2 最大变化是结构化数据优先、PDF 引文语境提取和 Search LLM / 轻量模型分离。
+          v2 的核心变化是结构化数据优先、Search LLM 与轻量模型分离、PDF 下载与解析链路增强、报告内问答，以及面向成本控制的 Basic / Advanced / Full 三档服务。
         </div>
 
         <h3 id="architecture-frontend">2.2 前端结构</h3>
         <ul>
-          <li>模板：<span class="inline">citationclaw/templates/*.html</span>（首页、任务、配置、结果）；</li>
+          <li>模板：<span class="inline">citationclaw/templates/*.html</span>，包括首页、配置、结果与报告查看；</li>
           <li>脚本：<span class="inline">citationclaw/static/js/main.js</span> 与 <span class="inline">websocket.js</span>；</li>
-          <li>交互特性：实时日志、阶段进度、年份遍历弹窗、内置 UI 助手聊天窗口。</li>
+          <li>交互特性：实时日志、阶段进度、任务取消、年份遍历弹窗、Search/轻量模型预检、配置快捷填充、UI 使用助手。</li>
         </ul>
 
         <h3 id="architecture-backend">2.3 后端结构</h3>
         <ul>
           <li>Web 框架：FastAPI（<span class="inline">citationclaw/app/main.py</span>）；</li>
-          <li>配置中心：Pydantic 配置模型（<span class="inline">config_manager.py</span>）；</li>
-          <li>核心模块：抓取器、元数据采集器、学者预过滤器、Scholar 搜索代理、PDF 下载与解析器、导出器、Dashboard 生成器。</li>
+          <li>配置中心：Pydantic 配置模型与服务层级预设（<span class="inline">config_manager.py</span>）；</li>
+          <li>核心模块：Scholar 抓取、结构化元数据采集、PDF 下载与 MinerU/PyMuPDF 解析、学者预过滤、Search LLM 核验、导出器与 Dashboard 生成器；</li>
+          <li>Skills Runtime：注册 <span class="inline">phase1_citation_fetch</span>、<span class="inline">phase4_citation_extract</span>、<span class="inline">phase5_report_generate</span> 等可替换阶段 Skill。</li>
         </ul>
 
         <h3 id="architecture-data">2.4 数据与产物结构</h3>
         <p>新流程默认输出到时间戳目录：</p>
         <pre><code>data/result-YYYYMMDD_HHMMSS/
   paper1_citing.jsonl
-  paper1_authors.jsonl
+  paper1_author_information.jsonl
   merged_authors.jsonl
+  paper_citing_desc.jsonl
   paper_results.xlsx
   paper_results_all_renowned_scholar.xlsx
   paper_results_top-tier_scholar.xlsx
   paper_results_with_citing_desc.xlsx
   paper_results.json
   paper_dashboard.html</code></pre>
+        <p>跨运行缓存主要位于 <span class="inline">data/cache/</span>，包括作者信息、PDF 文件、PDF 解析结果和引文描述缓存。</p>
       </section>
 
       <section id="requirements">
@@ -329,7 +332,8 @@
         <ul>
           <li>Python：<strong>3.10+</strong>（推荐 3.12）；</li>
           <li>系统：Linux / macOS / Windows；</li>
-          <li>网络：需访问 Google Scholar、ScraperAPI、OpenAI 兼容服务端点；</li>
+          <li>必需网络：Google Scholar、ScraperAPI、OpenAI 兼容服务端点；</li>
+          <li>推荐网络：OpenAlex、Semantic Scholar、arXiv、Web of Science、MinerU、Unpaywall 与出版商页面；</li>
           <li>依赖管理：项目使用 <span class="inline">pyproject.toml</span> 与 <span class="inline">requirements.txt</span>。</li>
         </ul>
       </section>
@@ -371,10 +375,12 @@ python -m citationclaw --port 8080</code></pre>
                style="width:100%;max-width:980px;border:1px solid var(--line);border-radius:10px;display:block;">
         </figure>
         <ol>
-          <li>启动服务后，第一步先填写 <span class="inline">ScraperAPI Key</span>（可多个，逗号分隔）与 <span class="inline">OpenAI 兼容 API Key</span>；</li>
-          <li><strong>Search Model 不用改</strong>，保持 <span class="inline">gemini-3-flash-preview-search</span>（当前效果最好）；</li>
-          <li>其他配置先保持默认；</li>
-          <li>点击“保存配置”。</li>
+          <li>填写 <span class="inline">ScraperAPI Key</span>，多个 key 用英文逗号分隔，便于轮换；</li>
+          <li>填写 <span class="inline">Search LLM</span> API Key 和模型，Search 模型必须支持 web search，用于学者身份核验；</li>
+          <li>轻量模型用于报告生成和引文语境抽取，可留空复用 Search LLM，也可单独配置更便宜的 OpenAI 兼容服务；</li>
+          <li>点击 Search LLM 与轻量模型旁的预检按钮，确认两个模型都能连通；</li>
+          <li>可选填写 Semantic Scholar、Web of Science、MinerU Token、CDP 端口与费用追踪信息；</li>
+          <li>保存配置后再开始分析。</li>
         </ol>
 
         <h3 id="quickstart-paper">4.5 首次论文选择建议</h3>
@@ -383,24 +389,31 @@ python -m citationclaw --port 8080</code></pre>
                style="width:100%;max-width:980px;border:1px solid var(--line);border-radius:10px;display:block;">
         </figure>
         <ol>
-          <li>启动后先输入目标论文标题；</li>
+          <li>可直接输入目标论文英文题目，也可粘贴 Google Scholar 学者主页 URL 批量导入论文；</li>
           <li>首次测试建议选 <span class="inline">citation &lt; 10</span> 的论文，便于快速跑通全流程；</li>
-          <li>也支持一次输入多篇论文，但首次不建议太多，避免调试复杂度和成本上升。</li>
+          <li>支持多篇同时分析与别名归并，但首次不建议一次加入过多论文，避免调试复杂度和成本上升。</li>
         </ol>
 
         <h3 id="quickstart-tier">4.6 服务层级建议（首次）</h3>
-        <p>在“服务层级”中优先选择 <strong>基础服务</strong>：</p>
-        <ul>
-          <li>执行施引文献检索、结构化作者采集和知名学者评估；</li>
-          <li>不执行 Phase 4 引文语境提取，因此成本较低、速度较快，适合首轮验证配置是否正确。</li>
-        </ul>
+        <p>首次建议选择 <strong>基础服务（Basic）</strong>，确认 Scholar 抓取、结构化作者采集和知名学者评估都能跑通。</p>
+        <table>
+          <thead>
+            <tr><th>层级</th><th>推荐场景</th><th>主要行为</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Basic</td><td>首次试跑、成本敏感、只看知名学者引用</td><td>执行 Phase 1-3 与 Phase 5，跳过 Phase 4 引文语境分析</td></tr>
+            <tr><td>Advanced</td><td>需要理解重要施引论文如何讨论目标论文</td><td>开启 Phase 4，配置意图为知名学者相关施引论文的引文语境提取</td></tr>
+            <tr><td>Full</td><td>基金、述职、项目汇报前的完整画像</td><td>对全部施引论文执行引文语境提取，成本和耗时最高</td></tr>
+          </tbody>
+        </table>
 
         <h3 id="quickstart-runtime">4.7 运行期注意事项</h3>
         <ul>
-          <li>完成 API 配置与论文输入后，点击“开始分析”；</li>
-          <li>过程中请开启科学上网，保证 Scholar 与 API 网络访问稳定；</li>
-          <li>请耐心等待，<span class="inline">citation &lt; 10</span> 的论文通常几分钟可完成检索；</li>
-          <li>分析完成后下载并打开 <span class="inline">paper_dashboard.html</span> 查看结果。</li>
+          <li>完成 API 配置与论文输入后，点击“开始分析”，配置会自动保存；</li>
+          <li>引用量超过 1000 时开启“按年份遍历”，系统会按年份分段抓取，但 ScraperAPI 和 LLM 成本会增加；</li>
+          <li>运行时可通过 WebSocket 实时查看日志、阶段进度、费用预估和取消状态；</li>
+          <li>如果已有作者与引文描述缓存，可使用“从缓存生成报告”快速重建 Dashboard；</li>
+          <li>分析完成后优先查看 <span class="inline">paper_dashboard.html</span>，再按需下载 Excel / JSON。</li>
         </ul>
 
         <div class="warn">
@@ -418,43 +431,54 @@ python -m citationclaw --port 8080</code></pre>
           </thead>
           <tbody>
             <tr><td>scraper_api_keys</td><td>是</td><td>抓取 Google Scholar，建议 3 个以上轮换</td></tr>
-            <tr><td>openai_api_key</td><td>是</td><td>OpenAI 兼容密钥</td></tr>
-            <tr><td>openai_base_url</td><td>建议</td><td>API 基础地址（默认 <span class="inline">https://api.gpt.ge/v1/</span>）</td></tr>
-            <tr><td>openai_model</td><td>是</td><td>Search 模型，用于作者检索/引文检索，需支持 web search</td></tr>
-            <tr><td>dashboard_model</td><td>建议</td><td>报告分析模型（可无需 web search）</td></tr>
+            <tr><td>openai_api_key</td><td>是</td><td>Search LLM 密钥，用于学者检索、身份核验与需要联网的问题</td></tr>
+            <tr><td>openai_base_url</td><td>建议</td><td>Search LLM API 基础地址，默认 <span class="inline">https://api.gpt.ge/v1/</span></td></tr>
+            <tr><td>openai_model</td><td>是</td><td>Search 模型，必须支持 web search</td></tr>
+            <tr><td>light_api_key / light_base_url</td><td>可选</td><td>轻量模型独立端点，留空则复用 Search LLM 配置</td></tr>
+            <tr><td>dashboard_model</td><td>建议</td><td>报告分析与引文语境抽取模型，可无需 web search</td></tr>
+            <tr><td>s2_api_key</td><td>可选</td><td>提升 Semantic Scholar 速率限制、元数据与 PDF 链接发现稳定性</td></tr>
+            <tr><td>wos_api_key</td><td>可选</td><td>Web of Science Starter API，用于更高优先级的结构化作者信息</td></tr>
+            <tr><td>mineru_api_token</td><td>可选</td><td>用于复杂或较长 PDF 的 MinerU Cloud 解析</td></tr>
+            <tr><td>cdp_debug_port</td><td>可选</td><td>连接已登录的 Chrome/Edge 远程调试端口，用于 IEEE / Elsevier / ACM 等浏览器下载</td></tr>
           </tbody>
         </table>
 
         <h3 id="core-config-tier">5.2 服务层级配置</h3>
-        <p>内置预设在 <span class="inline">SERVICE_TIER_PRESETS</span>：</p>
+        <p>内置预设在 <span class="inline">SERVICE_TIER_PRESETS</span>，前端会根据层级自动派生 Phase 4 与 Dashboard 设置：</p>
         <ul>
           <li><strong>basic</strong>：抓取施引文献，采集作者与元数据，评估知名学者，不做引文语境分析；</li>
-          <li><strong>advanced</strong>：在 basic 基础上，仅对知名学者相关施引论文做引文语境提取；</li>
+          <li><strong>advanced</strong>：目标行为是在 basic 基础上，仅对知名学者相关施引论文做引文语境提取；</li>
           <li><strong>full</strong>：对全部施引论文做引文语境提取，报告最完整，成本和耗时最高。</li>
         </ul>
+        <div class="warn">
+          当前实现说明：Basic 已实际关闭 Phase 4；Full 会对全部 merged records 做 Phase 4。Advanced 会保存 <span class="inline">citing_description_scope=renowned_only</span>，但当前主流程尚未按该字段裁剪 Phase 4 输入，因此实际成本可能接近 Full。该差异只影响 Advanced 的范围过滤，不影响 Basic 与 Full 的主要行为。
+        </div>
 
         <h3 id="core-config-reliability">5.3 稳定性与续跑配置</h3>
         <ul>
-          <li><span class="inline">enable_year_traverse</span>：按年份遍历，突破 1000 条限制；</li>
-          <li><span class="inline">resume_page_count</span>：中断后断点续爬页码；</li>
-          <li><span class="inline">retry_max_attempts</span> + <span class="inline">retry_intervals</span>：统一重试策略；</li>
-          <li><span class="inline">scraper_session</span>：会话保持，缓解不同数据中心返回不一致；</li>
-          <li><span class="inline">scraper_geo_rotate</span>：重试时轮换国家节点（需相应套餐支持）。</li>
+          <li><span class="inline">enable_year_traverse</span>：按年份遍历，突破 Google Scholar 约 1000 条结果显示限制；</li>
+          <li><span class="inline">resume_page_count</span>：从指定页继续阶段 1 抓取；</li>
+          <li><span class="inline">retry_max_attempts</span> + <span class="inline">retry_intervals</span>：统一 HTTP、登录页和临时失败重试策略；</li>
+          <li><span class="inline">scraper_session</span>：保持同一代理会话，缓解不同数据中心返回不一致；</li>
+          <li><span class="inline">scraper_geo_rotate</span>：重试时轮换国家节点，需 ScraperAPI 相应套餐支持；</li>
+          <li><span class="inline">/api/run/from-cache</span>：利用历史作者与引文描述缓存快速重建报告。</li>
         </ul>
 
         <h3 id="core-config-cost">5.4 成本控制配置</h3>
         <ul>
-          <li><span class="inline">parallel_author_search</span>：并行度越高，速度越快但瞬时成本更高；</li>
+          <li><span class="inline">parallel_author_search</span>：并行度越高速度越快，但瞬时请求量与失败重试成本更高；</li>
           <li><span class="inline">scraper_premium</span> / <span class="inline">scraper_ultra_premium</span>：稳定性更高但积分成本显著上升；</li>
-          <li><span class="inline">api_access_token</span> + <span class="inline">api_user_id</span>：启用运行前后 LLM 额度差值追踪。</li>
+          <li><span class="inline">api_access_token</span> + <span class="inline">api_user_id</span>：启用运行前后 LLM 额度差值追踪；</li>
+          <li>Phase 4 是成本大头之一，首次和高被引论文建议先跑 Basic。</li>
         </ul>
 
         <h3 id="core-config-quality">5.5 质量与调试配置</h3>
         <ul>
-          <li><span class="inline">enable_author_verification</span>：对作者信息做真实性核验；</li>
+          <li><span class="inline">enable_author_verification</span>：对作者身份、头衔、机构等信息做二次真实性核验；</li>
           <li><span class="inline">debug_mode</span>：保存每页 HTML 与解析详情到 <span class="inline">debug/</span>；</li>
           <li><span class="inline">test_mode</span>：使用 <span class="inline">test/mock_author_info.jsonl</span> 跳过真实 API 调用；</li>
-          <li><span class="inline">enable_dashboard</span>：是否生成最终 HTML 报告。</li>
+          <li><span class="inline">enable_dashboard</span>：是否生成最终 HTML 报告；</li>
+          <li>PDF 下载会记录 <span class="inline">PDF_Source</span> 与 <span class="inline">PDF_Failure_Reasons</span>，便于判断是访问限制、出版商登录、还是解析失败。</li>
         </ul>
       </section>
 
@@ -463,9 +487,10 @@ python -m citationclaw --port 8080</code></pre>
 
         <h3 id="api-external">6.1 外部服务支持</h3>
         <ul>
-          <li><strong>ScraperAPI</strong>：用于 Scholar 页面抓取，支持普通 / Premium / Ultra Premium；</li>
-          <li><strong>OpenAI 兼容 API</strong>：用于作者检索、引文描述、报告分析、聊天问答；</li>
-          <li><strong>Web Search 能力检测</strong>：通过 <span class="inline">/api/test_openai</span> 进行测试。</li>
+          <li><strong>ScraperAPI</strong>：用于 Scholar 页面抓取，支持普通 / Premium / Ultra Premium、session 与部分智能回退；</li>
+          <li><strong>OpenAI 兼容 API</strong>：Search LLM 用于学者核验与联网问答，轻量模型用于报告生成和引文语境抽取；</li>
+          <li><strong>结构化学术源</strong>：OpenAlex、Semantic Scholar、arXiv、Web of Science Starter API；</li>
+          <li><strong>PDF 解析与下载</strong>：MinerU Cloud / 本地解析、PyMuPDF、OpenAlex OA、S2、arXiv、CVF、DBLP、Unpaywall、出版商页面、CDP 浏览器会话等路径。</li>
         </ul>
 
         <h3 id="api-internal">6.2 内部 REST/WebSocket 接口</h3>
@@ -476,7 +501,9 @@ python -m citationclaw --port 8080</code></pre>
           <tbody>
             <tr><td>/api/config</td><td>GET/POST</td><td>读取/保存配置</td></tr>
             <tr><td>/api/presets</td><td>GET</td><td>获取服务层级预设</td></tr>
+            <tr><td>/api/providers</td><td>GET</td><td>获取模型服务商快捷填充预设</td></tr>
             <tr><td>/api/run</td><td>POST</td><td>按论文标题启动全流程</td></tr>
+            <tr><td>/api/run/from-cache</td><td>POST</td><td>基于历史缓存重建报告</td></tr>
             <tr><td>/api/scholar/papers</td><td>POST</td><td>爬取 Scholar 主页论文列表</td></tr>
             <tr><td>/api/task/start</td><td>POST</td><td>仅执行阶段 1</td></tr>
             <tr><td>/api/task/continue</td><td>POST</td><td>续执行阶段 2/3</td></tr>
@@ -484,51 +511,80 @@ python -m citationclaw --port 8080</code></pre>
             <tr><td>/api/task/status</td><td>GET</td><td>查看运行状态</td></tr>
             <tr><td>/api/task/cancel</td><td>POST</td><td>取消任务</td></tr>
             <tr><td>/api/task/year-traverse-respond</td><td>POST</td><td>响应年份遍历弹窗选择</td></tr>
+            <tr><td>/api/test_openai</td><td>POST</td><td>旧版通用 API 与 Web Search 测试</td></tr>
+            <tr><td>/api/pretest/search_llm</td><td>POST</td><td>测试 Search LLM 是否可用</td></tr>
+            <tr><td>/api/pretest/light_model</td><td>POST</td><td>测试轻量模型是否可用</td></tr>
+            <tr><td>/api/results/folders</td><td>GET</td><td>列出结果文件夹</td></tr>
             <tr><td>/api/results/list</td><td>GET</td><td>列出结果文件</td></tr>
             <tr><td>/api/results/view/{path}</td><td>GET</td><td>在线查看 HTML 报告</td></tr>
             <tr><td>/api/results/download/{path}</td><td>GET</td><td>下载结果文件</td></tr>
             <tr><td>/api/chat/ui</td><td>POST</td><td>前端使用助手（流式）</td></tr>
-            <tr><td>/api/chat/report</td><td>POST</td><td>报告问答（含自动检索判定）</td></tr>
+            <tr><td>/api/chat/report</td><td>POST</td><td>报告问答，支持自动判断是否需要联网搜索</td></tr>
             <tr><td>/api/quota/check</td><td>GET</td><td>查询 LLM 额度</td></tr>
-            <tr><td>/ws</td><td>WebSocket</td><td>推送日志、进度、阶段事件</td></tr>
+            <tr><td>/ws</td><td>WebSocket</td><td>推送日志、进度、阶段事件与完成结果</td></tr>
           </tbody>
         </table>
       </section>
 
       <section id="outputs">
         <h2>7. 输出产物说明</h2>
-        <h3>8.1 标准产物</h3>
+        <h3>7.1 标准产物</h3>
         <ul>
+          <li><span class="inline">*_citing.jsonl</span>：原始 Google Scholar 施引文献抓取结果；</li>
+          <li><span class="inline">merged_authors.jsonl</span>：多论文归并后的作者、机构、PDF 与学者评估记录；</li>
           <li><span class="inline">*_results.xlsx</span>：全量结构化结果；</li>
-          <li><span class="inline">*_results_all_renowned_scholar.xlsx</span>：所有知名学者；</li>
-          <li><span class="inline">*_results_top-tier_scholar.xlsx</span>：院士/Fellow 等顶层学者；</li>
-          <li><span class="inline">*_results_with_citing_desc.xlsx</span>：含引用原句结果；</li>
-          <li><span class="inline">*_results.json</span>：JSON 输出；</li>
-          <li><span class="inline">*_dashboard.html</span>：最终可视化画像报告。</li>
+          <li><span class="inline">*_results_all_renowned_scholar.xlsx</span>：所有知名学者引用记录；</li>
+          <li><span class="inline">*_results_top-tier_scholar.xlsx</span>：院士/Fellow 等顶层学者子集；</li>
+          <li><span class="inline">*_results_with_citing_desc.xlsx</span>：含引用原句、来源和章节位置的增强表格；</li>
+          <li><span class="inline">*_results.json</span>：便于程序继续处理的 JSON 输出；</li>
+          <li><span class="inline">*_dashboard.html</span>：最终可视化画像报告，单文件可分享。</li>
         </ul>
-        <h3>8.2 可复用机制</h3>
+
+        <h3>7.2 关键输出字段</h3>
+        <table>
+          <thead>
+            <tr><th>字段</th><th>含义</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Data_Sources</td><td>命中的结构化来源，如 s2、openalex、arxiv、wos</td></tr>
+            <tr><td>API_Authors</td><td>结构化 API 采集到的作者、机构与国家信息</td></tr>
+            <tr><td>PDF_Authors</td><td>PDF 首页或正文解析出的作者单位信息</td></tr>
+            <tr><td>PDF_Download</td><td>施引论文 PDF 是否下载成功</td></tr>
+            <tr><td>PDF_Source</td><td>PDF 成功来源，如 gs_pdf、oa_pdf、arxiv、CVF、CDP-IEEE 等</td></tr>
+            <tr><td>PDF_Failure_Reasons</td><td>各下载路径失败原因，便于排查访问、权限或解析问题</td></tr>
+            <tr><td>Is_Self_Citation</td><td>是否被识别为自引</td></tr>
+            <tr><td>Renowned Scholar / Formated Renowned Scholar</td><td>知名学者识别结果与格式化结果</td></tr>
+            <tr><td>Citing_Description</td><td>PDF-grounded 引文语境描述或失败说明</td></tr>
+            <tr><td>citing_desc_source</td><td>引文描述来源，如 pdf、cache、pdf_no_context、unavailable</td></tr>
+          </tbody>
+        </table>
+
+        <h3>7.3 可复用机制</h3>
         <ul>
           <li>作者信息缓存：跨运行复用，降低重复查询成本；</li>
-          <li>引文描述缓存：重复文献命中缓存，减少 LLM 调用；</li>
-          <li>历史导入：支持从已有 JSONL 跳过阶段 1。</li>
+          <li>PDF 缓存与解析缓存：Phase 4 会优先复用 Phase 2 已下载和已解析的 PDF；</li>
+          <li>引文描述缓存：重复文献命中缓存，减少轻量模型调用；</li>
+          <li>历史导入与缓存报告：支持从已有 JSONL 或缓存跳过部分步骤。</li>
         </ul>
       </section>
 
       <section id="operations">
         <h2>8. 运行与运维建议</h2>
-        <h3>9.1 生产可用默认值建议</h3>
+        <h3>8.1 生产可用默认值建议</h3>
         <ul>
           <li>服务层级：先 <strong>basic</strong> 验证链路，再切换 <strong>advanced/full</strong>；</li>
-          <li>并行度：<span class="inline">parallel_author_search=3~8</span>（按额度与稳定性调节）；</li>
+          <li>并行度：<span class="inline">parallel_author_search=3~8</span>，按额度、失败率和模型限速调节；</li>
           <li>重试：<span class="inline">retry_max_attempts=3</span>、<span class="inline">retry_intervals=5,10,20</span>；</li>
-          <li>超高被引论文：建议开启 <span class="inline">enable_year_traverse</span>。</li>
+          <li>超高被引论文：建议开启 <span class="inline">enable_year_traverse</span>，并预留更多 ScraperAPI 与 LLM 额度；</li>
+          <li>正式材料：开启作者验证，重点结论人工核对原始网页、Scholar 主页、大学主页或官方 Fellow/院士名单。</li>
         </ul>
 
-        <h3>9.2 成本与速度平衡</h3>
+        <h3>8.2 成本与速度平衡</h3>
         <ul>
-          <li>速度优先：提高并行度，但同时准备更多 Key 与更高额度；</li>
-          <li>成本优先：先跑 basic，不做 phase 4 深挖；</li>
-          <li>质量优先：开启作者校验与调试模式（耗时增加）。</li>
+          <li>速度优先：提高并行度，准备更多 ScraperAPI key，并使用稳定的 Search LLM；</li>
+          <li>成本优先：先跑 Basic，不做 Phase 4 深挖；需要引文原句时再切换 Advanced 或 Full；</li>
+          <li>PDF 成功率优先：配置 S2 Key、MinerU Token，并在有机构权限时启用 CDP 浏览器下载；</li>
+          <li>报告复用优先：不要删除 <span class="inline">data/cache/</span>，后续可从缓存重建报告。</li>
         </ul>
       </section>
 
@@ -542,27 +598,37 @@ python -m citationclaw --port 8080</code></pre>
             <tr>
               <td>作者信息明显不准</td>
               <td>头衔、机构、引用量偏差大</td>
-              <td>确认 Search Model 支持 web search；必要时启用 <span class="inline">enable_author_verification</span></td>
+              <td>确认 Search LLM 通过预检且支持 web search；必要时启用 <span class="inline">enable_author_verification</span></td>
             </tr>
             <tr>
               <td>ScraperAPI 频繁失败</td>
-              <td>抓取中断、页面异常</td>
-              <td>增加 key 数量、检查余额、提高重试间隔；必要时启用 premium/session</td>
+              <td>抓取中断、页面异常、登录页或地区结果不一致</td>
+              <td>增加 key 数量、检查余额、提高重试间隔；必要时启用 premium/session/geo rotate</td>
             </tr>
             <tr>
               <td>引用超 1000 条不完整</td>
               <td>抓取停在约 100 页</td>
-              <td>开启 <span class="inline">enable_year_traverse</span></td>
+              <td>开启 <span class="inline">enable_year_traverse</span>，按年份分段抓取并合并去重</td>
             </tr>
             <tr>
-              <td>任务中断需要继续</td>
-              <td>中途退出或被阻断</td>
-              <td>设置 <span class="inline">resume_page_count</span> 后重启任务</td>
+              <td>Phase 4 成本或耗时超预期</td>
+              <td>进阶/全面服务运行很久</td>
+              <td>先用 Basic 验证；Advanced 当前主流程的 Phase 4 范围可能接近 Full，详见 5.2 实现说明</td>
+            </tr>
+            <tr>
+              <td>PDF 下载失败</td>
+              <td><span class="inline">PDF_Download=false</span> 或 <span class="inline">PDF不可用</span></td>
+              <td>查看 <span class="inline">PDF_Failure_Reasons</span>；配置 S2/MinerU；对 IEEE、Elsevier、ACM 可尝试 CDP 已登录浏览器</td>
+            </tr>
+            <tr>
+              <td>报告没有引文描述分析</td>
+              <td>Dashboard 提示 Basic 未开启 Phase 4</td>
+              <td>选择 Advanced 或 Full 重新运行，或从已有缓存重建报告</td>
             </tr>
             <tr>
               <td>报告未生成</td>
               <td>没有 dashboard 文件</td>
-              <td>检查 <span class="inline">enable_dashboard</span>，以及前置数据是否成功生成</td>
+              <td>检查 <span class="inline">enable_dashboard</span>，以及 Phase 1-3 是否产出有效数据</td>
             </tr>
           </tbody>
         </table>
@@ -575,7 +641,7 @@ python -m citationclaw --port 8080</code></pre>
             <tr><th>日期</th><th>版本</th><th>变更</th></tr>
           </thead>
           <tbody>
-            <tr><td>2026-05-18</td><td>v2.0.0</td><td>结构化 API 元数据采集、Skills Runtime 编排、Search LLM 与轻量模型分离、PDF 引文语境提取、三档服务层级与可分享 HTML 报告</td></tr>
+            <tr><td>2026-05-22</td><td>v2.0.0</td><td>结构化 API 元数据采集、Skills Runtime 编排、Search LLM 与轻量模型分离、PDF 引文语境提取、三档服务层级与可分享 HTML 报告</td></tr>
             <tr><td>2026-03-18</td><td>beta v1.0.9</td><td>多篇搜索去重修复、年份遍历非持久化、默认并发数提升、V-API 注册入口、LLM 重试日志和缓存写入优化</td></tr>
             <tr><td>2026-03-14</td><td>v1.0.4</td><td>界面交互优化，强化服务分层（基础/进阶/全面）</td></tr>
             <tr><td>2026-03-12</td><td>v1.0.3</td><td>支持 PyPI 一行安装，自动打开浏览器，跨平台运行</td></tr>
@@ -583,28 +649,31 @@ python -m citationclaw --port 8080</code></pre>
           </tbody>
         </table>
         <div class="note">
-          维护时建议同步统一版本号来源（例如 <span class="inline">pyproject.toml</span>、<span class="inline">citationclaw/__init__.py</span>、FastAPI app version）。
+          当前版本号在 <span class="inline">pyproject.toml</span> 与 <span class="inline">citationclaw/__init__.py</span> 中均为 <span class="inline">2.0.0</span>。
         </div>
       </section>
 
       <section id="roadmap">
         <h2>11. 已知事项与后续建议</h2>
-        <h3>12.1 已知事项</h3>
+        <h3>11.1 已知事项</h3>
         <ul>
           <li>Google Scholar 存在天然反爬与结果上限，需结合重试与年份遍历策略；</li>
           <li>不同数据中心可能导致页面不一致，项目已实现 session 与国家轮换补救；</li>
-          <li>模型质量与检索能力强相关，Search 模型选型直接影响准确性。</li>
+          <li>模型质量与检索能力强相关，Search 模型选型直接影响知名学者识别准确性；</li>
+          <li>Advanced 的 <span class="inline">renowned_only</span> Phase 4 范围过滤仍需后端主流程进一步对齐；</li>
+          <li>PDF 下载受出版商权限、地区网络和登录状态影响，失败时应结合 <span class="inline">PDF_Failure_Reasons</span> 判断。</li>
         </ul>
 
-        <h3>12.2 后续建议</h3>
+        <h3>11.2 后续建议</h3>
         <ul>
-          <li>继续统一 README、Guidelines、Technical Report 与网页首页中的版本号和服务层级描述；</li>
-          <li>将配置项按“必填/推荐/高级/实验”分层展示，降低上手门槛；</li>
-          <li>引入固定测试数据回归（test_mode）、API 兼容性自动体检和文档链接检查。</li>
+          <li>补齐 Advanced 服务层级对 <span class="inline">citing_description_scope</span> 的后端过滤；</li>
+          <li>继续统一 README、Guidelines、Technical Report 与网页首页中的能力描述；</li>
+          <li>将模型预检、PDF 下载来源、缓存命中率纳入更明确的运行健康检查；</li>
+          <li>引入固定测试数据回归、API 兼容性自动体检和文档链接检查。</li>
         </ul>
 
         <div class="warn">
-          本项目仅用于学术研究与学习，请遵守 Google Scholar 与第三方 API 服务条款，避免高频违规抓取。
+          本项目仅用于学术研究与学习，请遵守 Google Scholar 与第三方 API 服务条款，避免高频违规抓取。正式汇报或评审材料使用前，应人工核验关键作者身份、引用语境和来源链接。
         </div>
       </section>
     </main>

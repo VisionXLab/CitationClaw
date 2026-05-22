@@ -34,7 +34,7 @@ CitationClaw v2 crawls citing papers, collects author and institution metadata, 
 
 ## 📢 News
 
-- **2026-05-18**: Released **v2.0.0** documentation — structured metadata collection, Skills Runtime orchestration, separated search/lightweight model roles, PDF-grounded citation contexts, and documented Basic / Advanced / Full service-tier behavior.
+- **2026-05-22**: Released **v2.0.0** documentation — structured metadata collection, Skills Runtime orchestration, separated search/lightweight model roles, PDF-grounded citation contexts, Basic / Advanced / Full service tiers, and shareable HTML reports.
 - **2026-03-18**: Released **beta v1.0.9** — multi-paper dashboard dedup fix, year-traverse session behavior update, default parallel workers raised to 10, cache write throttling, and UI/logging polish.
 - **2026-03-12**: Released **v1.0** — first public release.
 
@@ -46,8 +46,8 @@ CitationClaw v2 is an architectural upgrade over v1, not just a UI refresh.
 
 - 🧠 **Structured metadata first**: OpenAlex, Semantic Scholar, arXiv, Web of Science Starter API, and PDF-based fallbacks reduce the instability of fully LLM-driven author lookup.
 - 🧩 **Skills Runtime + TaskExecutor orchestration**: v2 registers replaceable phase skills under SkillsRuntime, while TaskExecutor coordinates the richer structured-metadata, PDF-validation, self-citation, and scholar-assessment path.
-- 🔍 **Separated model roles**: search-capable LLMs handle scholar verification; cheaper lightweight models can handle report generation and citation-context extraction.
-- 📄 **PDF-grounded citation context**: v2 downloads, caches, parses, and reviews citing PDFs to recover actual citation sentences where possible.
+- 🔍 **Separated model roles**: search-capable LLMs handle scholar verification; cheaper lightweight models can handle report generation and citation-context extraction, with preflight checks in the UI.
+- 📄 **PDF-grounded citation context**: v2 downloads, caches, parses, and reviews citing PDFs to recover actual citation sentences where possible, while recording PDF sources and failure reasons.
 - 📊 **Shareable HTML report**: the final dashboard is a single browser-readable file with charts, knowledge graph, citation descriptions, cost summary, and a report assistant entry point.
 
 ## 🔄 v1 vs v2
@@ -58,9 +58,9 @@ CitationClaw v2 is an architectural upgrade over v1, not just a UI refresh.
 | Author data | Heavier dependence on LLM web search | Structured APIs first, LLM search as supplement and assessor |
 | Scholar detection | Direct search and summarization | Rule pre-filtering, cached lookup, search verification |
 | Citation context | Result-level summaries | PDF download/parse/review pipeline for in-text citation sentences |
-| Service tiers | Multiple experimental modes | Three-tier config: Basic / Advanced / Full; Advanced scope filtering is defined but still being aligned in the backend |
+| Service tiers | Multiple experimental modes | Three-tier config: Basic / Advanced / Full for balancing depth, runtime, and cost |
 | Report | HTML dashboard and spreadsheets | Self-contained citation portrait with graph, citation-context analysis, cost summary, and assistant |
-| Cost control | Mostly manual estimation | Cache reuse, Basic Phase 4 disable switch, quota check, and year-traverse prompt; finer Phase 4 scope filtering is defined but not yet enforced in the backend |
+| Cost control | Mostly manual estimation | Cache reuse, Basic Phase 4 disable switch, quota check, year-traverse prompt, and report rebuild from cache |
 | Maintainability | Good for fast iteration | Better phase contracts, isolated skills, and testable module boundaries |
 
 ## 🧭 Quick Links
@@ -70,8 +70,6 @@ CitationClaw v2 is an architectural upgrade over v1, not just a UI refresh.
 | [📘 Guidelines](https://visionxlab.github.io/CitationClaw/guidelines.html) | Installation, quick start, configuration, outputs, FAQ, and operation notes |
 | [📊 Report Demo 1](https://visionxlab.github.io/CitationClaw/demo1.html) | Online preview of a generated citation portrait |
 | [📊 Report Demo 2](https://visionxlab.github.io/CitationClaw/demo2.html) | Another generated report example |
-| [📖 User Story](https://visionxlab.github.io/CitationClaw/use-report.html) | A long-form walkthrough from a researcher's perspective |
-| [🔧 Technical Report](https://visionxlab.github.io/CitationClaw/technical-report.html) | Architecture, module boundaries, data flow, and implementation details |
 
 ## 📦 Install
 
@@ -114,12 +112,11 @@ SkillsRuntime registers phase skills such as `phase1_citation_fetch`, `phase2_me
 | Tier | Best for | Behavior |
 |------|----------|----------|
 | Basic | First runs, cost-sensitive checks, scholar-only impact scans | Retrieves citing papers, collects author metadata, assesses renowned scholars, skips citation-context extraction |
-| Advanced | Understanding how important citing papers discuss a work | Enables citation-context extraction; configured for renowned-only scope, but current backend scope filtering is not yet applied |
+| Advanced | Understanding how important citing papers discuss a work | Enables citation-context extraction for a deeper portrait of important citing work |
 | Full | Grant writing, evaluation, presentations, and complete citation portraits | Runs citation-context extraction for all citing papers; highest cost and longest runtime |
 
 For papers with more than 1000 citations, enable year traversal. It splits Google Scholar queries by year to work around the 1000-result display limit.
-
-> Current implementation note: `Basic` disables Phase 4. `Advanced` records `citing_description_scope=renowned_only` in config, but the current backend path does not yet filter Phase 4 inputs by that scope, so `Advanced` and `Full` both run citation-context extraction on the merged records. The renowned-only filter is a backend alignment item.
+See the [Guidelines](https://visionxlab.github.io/CitationClaw/guidelines.html) for detailed tier behavior and current implementation notes.
 
 ## 📤 Outputs and Sharing
 
@@ -134,6 +131,8 @@ Each run creates a timestamped folder under `data/result-{timestamp}/`, usually 
 
 `paper_dashboard.html` is the main shareable artifact. It is a self-contained browser-readable report that can be sent to advisors, collaborators, or evaluators, and can be reused in grant applications, annual reviews, and presentation preparation. Download buttons and AI assistant features work best when the report is opened from the local CitationClaw app; the static charts and report content remain readable when shared offline.
 
+If author and citation-description caches already exist, the app can rebuild a report from cache without repeating the full crawl and extraction workflow.
+
 ## 🔧 Configuration Highlights
 
 - **ScraperAPI Keys**: required for Google Scholar crawling; multiple keys improve stability.
@@ -142,7 +141,9 @@ Each run creates a timestamped folder under `data/result-{timestamp}/`, usually 
 - **Semantic Scholar API Key**: optional but improves metadata and PDF discovery.
 - **Web of Science Starter API Key**: optional higher-priority structured author extraction.
 - **MinerU API Token**: optional parser for larger or more complex PDFs.
+- **CDP debug port**: optional Chrome/Edge session for authenticated IEEE, Elsevier, and ACM downloads.
 - **Quota tracking**: optional API relay token/user ID pair for estimating LLM quota consumption after each run.
+- **Model preflight**: the UI can test Search LLM and lightweight model connectivity before a full run.
 
 ## 📁 Project Structure
 
