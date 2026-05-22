@@ -158,21 +158,6 @@ docs/                    # documentation site and demos
 test/                    # tests
 ```
 
-## 📚 Citation
-
-If CitationClaw helps your research, reporting, or evaluation workflow, please cite the project:
-
-```bibtex
-@software{citationclaw2026,
-  title        = {CitationClaw: Turning Every Citation into Explainable Impact},
-  author       = {Yang, Qihao and Fan, Ziqian and Gong, Ziyang and Yang, Xue},
-  year         = {2026},
-  version      = {2.0.0},
-  url          = {https://github.com/VisionXLab/CitationClaw},
-  institution  = {Shanghai Jiao Tong University, VisionXLab}
-}
-```
-
 ## 🌍 Community
 
 - Product update: [减论 reduct.cn](https://www.reduct.cn/)
@@ -193,3 +178,31 @@ CitationClaw is intended for academic research and personal study. Follow the te
 [![Star History Chart](https://api.star-history.com/svg?repos=VisionXLab/CitationClaw&type=Date)](https://star-history.com/#VisionXLab/CitationClaw&Date)
 
 </div>
+
+## 👥 Team
+
+**Shanghai Jiao Tong University — VisionXLab@RethinkLab**<br>
+Qihao Yang (杨起豪), Chunhao Zhang (张春浩), Ziyang Gong (龚子洋), Ziqian Fan (樊子谦), Yifan Zhou (周奕帆), Yue Zhou (周越), Zhihang Zhong (钟志航), Xue Yang (杨学) ⭐ *Project Leader*
+
+**East China Normal University & Shanghai AI Lab — DMCV**<br>
+Yifan Cheng (程依凡), Zhanghan Xu (许张涵), Jiawei Lu (陆佳炜), Xin Tan (谭鑫)
+
+**Southeast University — PALM Lab**<br>
+Caorui Li (李操瑞), Tianyi Zhou (周天一), Xu Yang (杨旭)
+
+> **Acknowledgment**: Special thanks to **Keyu Chen (陈柯宇)** for sponsoring the compute and API resources that made this project possible.
+
+## 📚 Citation
+
+If CitationClaw helps your research, reporting, or evaluation workflow, please cite the project:
+
+```bibtex
+@software{citationclaw2026,
+  title        = {CitationClaw: Turning Every Citation into Explainable Impact},
+  author       = {Yang, Qihao and Zhang, Chunhao and Cheng, Yifan and Gong, Ziyang and Li, Caorui and Xu, Zhanghan and Zhou, Tianyi and Lu, Jiawei and Fan, Ziqian and Zhou, Yifan and Zhou, Yue and Zhong, Zhihang and Yang, Xu and Tan, Xin and Yang, Xue},
+  year         = {2026},
+  version      = {2.0.0},
+  url          = {https://github.com/VisionXLab/CitationClaw},
+  institution  = {Shanghai Jiao Tong University, East China Normal University, Southeast University}
+}
+```
