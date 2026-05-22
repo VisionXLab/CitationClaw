@@ -190,7 +190,8 @@ Yifan Cheng (程依凡), Zhanghan Xu (许张涵), Jiawei Lu (陆佳炜), Xin Tan
 **Southeast University — PALM Lab**<br>
 Caorui Li (李操瑞), Tianyi Zhou (周天一), Xu Yang (杨旭)
 
-> <b><img src="https://img.shields.io/badge/Acknowledgment-Special%20Thanks-2563eb?style=flat-square" alt="Acknowledgment"></b> Special thanks to <b>Keyu Chen (陈柯宇)</b> for generously sponsoring the compute and API resources that made this project possible.
+> [!NOTE]
+> **Acknowledgment**: Special thanks to **Keyu Chen (陈柯宇)** for generously sponsoring the compute and API resources that made this project possible.
 
 ## 📚 Citation
 
