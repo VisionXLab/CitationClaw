@@ -182,7 +182,7 @@ CitationClaw is intended for academic research and personal study. Follow the te
 ## 👥 Team
 
 **Shanghai Jiao Tong University — VisionXLab@RethinkLab**<br>
-Qihao Yang (杨起豪), Chunhao Zhang (张春浩), Ziyang Gong (龚子洋), Ziqian Fan (樊子谦), Yifan Zhou (周奕帆), Yue Zhou (周越), Zhihang Zhong (钟志航), Xue Yang (杨学) ⭐ *Project Leader*
+Qihao Yang (杨起豪), Chunhao Zhang (张春浩), Ziyang Gong (龚子洋), Ziqian Fan (樊子谦), Yifan Zhou (周奕帆), Yue Zhou (周越), Zhihang Zhong (钟志航), **Xue Yang (杨学) ⭐ Project Leader**
 
 **East China Normal University & Shanghai AI Lab — DMCV**<br>
 Yifan Cheng (程依凡), Zhanghan Xu (许张涵), Jiawei Lu (陆佳炜), Xin Tan (谭鑫)
@@ -190,7 +190,7 @@ Yifan Cheng (程依凡), Zhanghan Xu (许张涵), Jiawei Lu (陆佳炜), Xin Tan
 **Southeast University — PALM Lab**<br>
 Caorui Li (李操瑞), Tianyi Zhou (周天一), Xu Yang (杨旭)
 
-> **Acknowledgment**: Special thanks to **Keyu Chen (陈柯宇)** for sponsoring the compute and API resources that made this project possible.
+> 🙏 **Acknowledgment**: Special thanks to **Keyu Chen (陈柯宇)** for generously sponsoring the compute and API resources that made this project possible.
 
 ## 📚 Citation
 
