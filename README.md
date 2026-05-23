@@ -180,7 +180,7 @@ test/                    # tests
 ## 🌍 Community
 
 - Product update: [减论 reduct.cn](https://www.reduct.cn/)
-- 因交流群已满，请添加个人微信，邀请进群：
+- The WeChat group is full. Please add the personal WeChat below to be invited:
 
 <div align="center">
   <img src="docs/assets/personal_wc.jpg" width="200" alt="Personal WeChat QR">
