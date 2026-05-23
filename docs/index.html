@@ -722,6 +722,140 @@
 </section>
 
 <!-- ─────────────────────────────────────────
+     BENCHMARK
+───────────────────────────────────────── -->
+<section id="benchmark" style="border-top:1px solid var(--border)">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Benchmark · 评测对比</div>
+      <h2 class="section-title">v1 vs v2 Performance</h2>
+      <p class="section-desc">基于人工标注 Ground Truth 的五维定量评测，总分为加权求和</p>
+    </div>
+
+    <!-- overall highlight -->
+    <div style="display:flex;gap:20px;margin-bottom:36px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px;text-align:center;padding:28px 20px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg-alt)">
+        <div style="font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">v1 Overall</div>
+        <div style="font-size:36px;font-weight:700;color:var(--muted);letter-spacing:-.02em">42.33</div>
+      </div>
+      <div style="flex:1;min-width:200px;text-align:center;padding:28px 20px;border-radius:12px;border:1.5px solid var(--accent);background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%)">
+        <div style="font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:8px">v2 Overall</div>
+        <div style="font-size:36px;font-weight:700;color:var(--accent);letter-spacing:-.02em">68.98</div>
+      </div>
+      <div style="flex:1;min-width:200px;text-align:center;padding:28px 20px;border-radius:12px;border:1.5px solid #22c55e;background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%)">
+        <div style="font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#16a34a;margin-bottom:8px">Improvement</div>
+        <div style="font-size:36px;font-weight:700;color:#16a34a;letter-spacing:-.02em">+26.65</div>
+      </div>
+    </div>
+
+    <!-- dimension bars -->
+    <div style="display:flex;flex-direction:column;gap:18px">
+
+      <!-- Author -->
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <div style="font-size:13.5px;font-weight:600">Author <span style="font-weight:400;color:var(--muted);font-size:12px">— 作者姓名匹配 (F1)、机构准确率与覆盖率</span></div>
+          <div style="font-size:13px;font-weight:600;color:#16a34a">+11.51</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <div style="flex:1;height:22px;background:#f3f4f6;border-radius:6px;overflow:hidden;position:relative">
+            <div style="width:75.51%;height:100%;background:#d1d5db;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:11px;font-weight:600;color:#6b7280">75.51</div>
+          </div>
+          <div style="flex:1;height:22px;background:#eff6ff;border-radius:6px;overflow:hidden;position:relative">
+            <div style="width:87.02%;height:100%;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:11px;font-weight:600;color:#fff">87.02</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scholar -->
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <div style="font-size:13.5px;font-weight:600">Scholar <span style="font-weight:400;color:var(--muted);font-size:12px">— 院士 / Fellow 等知名学者识别命中率</span></div>
+          <div style="font-size:13px;font-weight:600;color:#16a34a">+5.02</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <div style="flex:1;height:22px;background:#f3f4f6;border-radius:6px;overflow:hidden;position:relative">
+            <div style="width:73.55%;height:100%;background:#d1d5db;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:11px;font-weight:600;color:#6b7280">73.55</div>
+          </div>
+          <div style="flex:1;height:22px;background:#eff6ff;border-radius:6px;overflow:hidden;position:relative">
+            <div style="width:78.57%;height:100%;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:11px;font-weight:600;color:#fff">78.57</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PDF -->
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <div style="font-size:13.5px;font-weight:600">PDF <span style="font-weight:400;color:var(--muted);font-size:12px">— PDF 成功下载并可解析的比例</span></div>
+          <div style="font-size:13px;font-weight:600;color:#16a34a">+74.43</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <div style="flex:1;height:22px;background:#f3f4f6;border-radius:6px;overflow:hidden;position:relative">
+            <div style="width:2%;height:100%;background:#d1d5db;border-radius:6px"></div>
+            <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:600;color:#9ca3af">0</span>
+          </div>
+          <div style="flex:1;height:22px;background:#eff6ff;border-radius:6px;overflow:hidden;position:relative">
+            <div style="width:74.43%;height:100%;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:11px;font-weight:600;color:#fff">74.43</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Citation -->
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <div style="font-size:13.5px;font-weight:600">Citation <span style="font-weight:400;color:var(--muted);font-size:12px">— 引文原句与 GT 的语义相似度（LLM 评判）</span></div>
+          <div style="font-size:13px;font-weight:600;color:#16a34a">+32.45</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <div style="flex:1;height:22px;background:#f3f4f6;border-radius:6px;overflow:hidden;position:relative">
+            <div style="width:13.81%;height:100%;background:#d1d5db;border-radius:6px"></div>
+            <span style="position:absolute;left:calc(13.81% + 6px);top:50%;transform:translateY(-50%);font-size:11px;font-weight:600;color:#9ca3af">13.81</span>
+          </div>
+          <div style="flex:1;height:22px;background:#eff6ff;border-radius:6px;overflow:hidden;position:relative">
+            <div style="width:46.26%;height:100%;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:11px;font-weight:600;color:#fff">46.26</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Source -->
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <div style="font-size:13.5px;font-weight:600">Data Source <span style="font-weight:400;color:var(--muted);font-size:12px">— 元数据完整性与正确性</span></div>
+          <div style="font-size:13px;font-weight:600;color:#16a34a">+4.90</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <div style="flex:1;height:22px;background:#f3f4f6;border-radius:6px;overflow:hidden;position:relative">
+            <div style="width:75.92%;height:100%;background:#d1d5db;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:11px;font-weight:600;color:#6b7280">75.92</div>
+          </div>
+          <div style="flex:1;height:22px;background:#eff6ff;border-radius:6px;overflow:hidden;position:relative">
+            <div style="width:80.82%;height:100%;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:11px;font-weight:600;color:#fff">80.82</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- legend -->
+    <div style="display:flex;gap:20px;justify-content:center;margin-top:20px;font-size:12px;color:var(--muted)">
+      <div style="display:flex;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:3px;background:#d1d5db"></div> v1</div>
+      <div style="display:flex;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:3px;background:var(--accent)"></div> v2</div>
+    </div>
+
+    <!-- key takeaways -->
+    <div style="margin-top:32px;padding:20px 24px;border-radius:10px;background:var(--bg-alt);border:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">Key Takeaways</div>
+      <ul style="font-size:13px;color:#374151;line-height:1.8;padding-left:18px;margin:0">
+        <li><strong>Citation (+32.45)</strong> — v1 输出解释性摘要，v2 从 PDF 正文提取实际引用句，语义匹配度大幅提升</li>
+        <li><strong>PDF (+74.43)</strong> — v1 无 PDF 下载解析能力，v2 新增 12 级下载级联与 ScraperAPI 出版商通道</li>
+        <li><strong>Author (+11.51)</strong> — 结构化 API（OpenAlex / S2 / WOS）替代纯 LLM 提取，配合 PDF 回退补全</li>
+        <li><strong>Scholar (+5.02)</strong> — 规则预过滤 + 缓存复用减少漏识别</li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────
      FEATURES
 ───────────────────────────────────────── -->
 <section id="features" style="border-top:1px solid var(--border)">
