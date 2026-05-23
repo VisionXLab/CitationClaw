@@ -198,7 +198,7 @@ CitationClaw is intended for academic research and personal study. Follow the te
 
 </div>
 
-## 👥 Team
+## 👥 Developer Team
 
 **Shanghai Jiao Tong University — VisionXLab@RethinkLab**<br>
 Qihao Yang (杨起豪), Chunhao Zhang (张春浩), Ziyang Gong (龚子洋), Ziqian Fan (樊子谦), Yifan Zhou (周奕帆), Yue Zhou (周越), Zhihang Zhong (钟志航), Xue Yang (杨学)<sup><b>⭐ Project Leader</b></sup>
