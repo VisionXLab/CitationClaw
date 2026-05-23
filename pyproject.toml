@@ -11,8 +11,19 @@ license = "CC-BY-NC-4.0"
 license-files = ["LICENSE"]
 authors = [
   { name = "Qihao Yang" },
-  { name = "Ziqian Fan" },
+  { name = "Chunhao Zhang" },
+  { name = "Yifan Cheng" },
   { name = "Ziyang Gong" },
+  { name = "Caorui Li" },
+  { name = "Zhanghan Xu" },
+  { name = "Tianyi Zhou" },
+  { name = "Jiawei Lu" },
+  { name = "Ziqian Fan" },
+  { name = "Yifan Zhou" },
+  { name = "Yue Zhou" },
+  { name = "Zhihang Zhong" },
+  { name = "Xu Yang" },
+  { name = "Xin Tan" },
   { name = "Xue Yang" },
 ]
 requires-python = ">=3.10"
