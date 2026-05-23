@@ -34,7 +34,7 @@ CitationClaw v2 crawls citing papers, collects author and institution metadata, 
 
 ## 📢 News
 
-- **2026-05-22**: Released **v2.0.0** documentation — structured metadata collection, Skills Runtime orchestration, separated search/lightweight model roles, PDF-grounded citation contexts, Basic / Advanced / Full service tiers, and shareable HTML reports.
+- **2026-05-24**: Released **v2.0.0** documentation — structured metadata collection, Skills Runtime orchestration, separated search/lightweight model roles, PDF-grounded citation contexts, Basic / Advanced / Full service tiers, and shareable HTML reports.
 - **2026-03-18**: Released **beta v1.0.9** — multi-paper dashboard dedup fix, year-traverse session behavior update, default parallel workers raised to 10, cache write throttling, and UI/logging polish.
 - **2026-03-12**: Released **v1.0** — first public release.
 
