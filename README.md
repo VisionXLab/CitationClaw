@@ -71,16 +71,16 @@ We evaluate CitationClaw on five dimensions using a curated benchmark of citing 
 |-----------|:--:|:--:|:-----------:|-----------------|
 | **Author** | 75.51 | **87.02** | +11.51 | Author name matching (F1), affiliation accuracy, and completeness |
 | **Scholar** | 73.55 | **78.57** | +5.02 | Whether renowned scholars (Academicians, Fellows, etc.) in ground truth are identified |
-| **PDF** | 67.37 | **74.43** | +7.06 | Ratio of citing papers with successfully downloaded and parsed PDFs |
+| **PDF** | 0 | **74.43** | +74.43 | Ratio of citing papers with successfully downloaded and parsed PDFs |
 | **Citation** | 13.81 | **46.26** | +32.45 | Quality of extracted in-text citation sentences vs. ground truth (LLM-judged semantic similarity) |
 | **Data Source** | 75.92 | **80.82** | +4.90 | Completeness and correctness of metadata sources (affiliation coverage, wrong-paper ratio) |
-| **Overall** | 52.44 | **68.98** | **+16.54** | Weighted aggregate across all five dimensions |
+| **Overall** | 42.33 | **68.98** | **+26.65** | Weighted aggregate across all five dimensions |
 
 **Key takeaways:**
 - **Citation context (+32.45)** is the largest improvement — v1 produced paraphrased summaries that scored poorly against ground-truth citation sentences; v2 extracts actual in-text sentences from parsed PDFs.
 - **Author (+11.51)** benefits from structured API sources (OpenAlex / S2 / WOS) replacing unstable LLM-only extraction, with PDF-based fallback for missing affiliations.
 - **Scholar (+5.02)** gains come from rule pre-filtering + cached lookup reducing missed identifications.
-- **PDF (+7.06)** reflects the 12-tier download cascade with ScraperAPI publisher channel and LLM search fallback.
+- **PDF (+74.43)** — v1 had no PDF download/parse pipeline; v2 introduces a 12-tier download cascade with ScraperAPI publisher channel and LLM search fallback.
 
 ## 🧭 Quick Links
 
