@@ -180,10 +180,10 @@ test/                    # tests
 ## 🌍 Community
 
 - Product update: [减论 reduct.cn](https://www.reduct.cn/)
-- User group in China:
+- 因交流群已满，请添加个人微信，邀请进群：
 
 <div align="center">
-  <img src="docs/assets/group.jpg" width="200" alt="User Group QR">
+  <img src="docs/assets/personal_wc.jpg" width="200" alt="Personal WeChat QR">
 </div>
 
 ## ⚠️ Disclaimer
