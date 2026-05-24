@@ -32,7 +32,7 @@ CitationClaw v2 crawls citing papers, collects author and institution metadata, 
 
 <div align="center">
 
-https://github.com/VisionXLab/CitationClaw/raw/main/promo.mp4
+https://github.com/user-attachments/assets/f232284d-36ac-43a5-8ea8-6678d5bdab5e
 
 </div>
 
