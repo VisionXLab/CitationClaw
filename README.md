@@ -82,6 +82,9 @@ We evaluate CitationClaw on five dimensions using a curated benchmark of citing 
 - **Scholar (+5.02)** gains come from rule pre-filtering + cached lookup reducing missed identifications.
 - **PDF (+74.43)** — v1 had no PDF download/parse pipeline; v2 introduces a 12-tier download cascade with ScraperAPI publisher channel and LLM search fallback.
 
+> [!IMPORTANT]
+> **Cost efficiency**: v2 reduces LLM token consumption to approximately **1/5** of v1, while achieving higher scores across all dimensions.
+
 ## 🧭 Quick Links
 
 | Resource | Description |
