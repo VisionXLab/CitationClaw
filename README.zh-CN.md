@@ -25,14 +25,11 @@
 **输入论文题目或 Google Scholar 学者主页，自动生成可分享的被引画像报告。**<br>
 CitationClaw v2 会抓取目标论文的施引文献，采集作者与机构信息，识别院士、Fellow、国家级人才和知名机构核心成员，提取论文正文中的引用语境，并输出一份可直接在浏览器打开的 HTML 画像报告。
 
-<a href="https://visionxlab.github.io/CitationClaw/assets/promo.mp4">
-  <img src="https://img.shields.io/badge/▶%20观看-宣传视频%20(4K)-2563eb?style=for-the-badge&logo=youtube&logoColor=white" alt="观看宣传视频">
-</a>
-
 </div>
 
 <div align="center">
-  <video src="https://visionxlab.github.io/CitationClaw/assets/promo.mp4" width="80%" controls muted></video>
+  <h3>🎬 宣传视频 — 50 秒了解 CitationClaw v2</h3>
+  <video src="https://visionxlab.github.io/CitationClaw/assets/promo.mp4" width="90%" controls muted></video>
 </div>
 
 ---
