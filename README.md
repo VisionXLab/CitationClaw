@@ -180,9 +180,11 @@ test/                    # tests
 ## 🌍 Community
 
 - Product update: [减论 reduct.cn](https://www.reduct.cn/)
-- The WeChat group is full. Please add the personal WeChat below to be invited:
+- User group (WeChat): scan to join. If the QR code has expired, add the personal WeChat below to be invited.
 
 <div align="center">
+  <img src="docs/assets/group.jpg" width="200" alt="WeChat Group QR">
+  &nbsp;&nbsp;&nbsp;&nbsp;
   <img src="docs/assets/personal_wc.jpg" width="200" alt="Personal WeChat QR">
 </div>
 
