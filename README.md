@@ -31,11 +31,7 @@ CitationClaw v2 crawls citing papers, collects author and institution metadata, 
 </div>
 
 <div align="center">
-
-[![Watch Promo Video](https://visionxlab.github.io/CitationClaw/assets/promo-poster.jpg)](https://visionxlab.github.io/CitationClaw/assets/promo.mp4)
-
-*Click to play — 50s overview of CitationClaw v2 (4K)*
-
+  <video src="https://visionxlab.github.io/CitationClaw/assets/promo.mp4" poster="https://visionxlab.github.io/CitationClaw/assets/promo-poster.jpg" controls muted width="960"></video>
 </div>
 
 ---
