@@ -28,6 +28,14 @@ English | [中文](./README.zh-CN.md)
 **Input a paper title or a Google Scholar profile, then generate a shareable citation portrait report.**<br>
 CitationClaw v2 crawls citing papers, collects author and institution metadata, identifies renowned scholars, extracts in-paper citation contexts, and produces a self-contained HTML report for research summaries, grant materials, and academic presentations.
 
+<a href="https://visionxlab.github.io/CitationClaw/assets/promo.mp4">
+  <img src="https://img.shields.io/badge/▶%20Watch-Promo%20Video%20(4K)-2563eb?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Promo Video">
+</a>
+
+</div>
+
+<div align="center">
+  <video src="https://visionxlab.github.io/CitationClaw/assets/promo.mp4" width="80%" controls muted></video>
 </div>
 
 ---
