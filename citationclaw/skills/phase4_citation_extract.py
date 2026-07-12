@@ -33,16 +33,42 @@ class CitationExtractSkill:
         # Phase 2 already downloaded PDFs — reuse them
         phase2_pdf_paths: Optional[list] = kwargs.get("pdf_paths")
 
+        papers = self._read_jsonl(input_file)
+        total = len(papers)
+        results = []
+        stats = {"total": total, "s2_context": 0, "pdf_found": 0, "pdf_missing": 0,
+                 "cached": 0, "extracted": 0, "no_context": 0, "self_cite_skip": 0}
+
+        if papers and all(self._is_s2_phase1_record(p) for p in papers):
+            for paper in papers:
+                contexts = self._s2_contexts(paper)
+                if contexts:
+                    paper["Citing_Description"] = self._format_s2_description(paper, contexts)
+                    paper["citing_desc_source"] = "s2"
+                    stats["s2_context"] += 1
+                    stats["extracted"] += 1
+                else:
+                    paper["Citing_Description"] = "S2 未提供引用语境"
+                    paper["citing_desc_source"] = "s2_no_context"
+                    stats["no_context"] += 1
+                results.append(paper)
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_file, "w", encoding="utf-8") as f:
+                for r in results:
+                    f.write(json.dumps(r, ensure_ascii=False) + "\n")
+            ctx.log(
+                f"[S2引文语境] 完成: {stats['extracted']} / "
+                f"无上下文 {stats['no_context']}"
+            )
+            return SkillResult(name=self.name, data={
+                "output_file": str(output_file),
+                **stats,
+            })
+
         parser = PDFCitationParser()
         mineru_parser = MinerUParser()
         parse_cache = PDFParseCache()
         prompt_loader = PromptLoader()
-
-        papers = self._read_jsonl(input_file)
-        total = len(papers)
-        results = []
-        stats = {"total": total, "pdf_found": 0, "pdf_missing": 0,
-                 "cached": 0, "extracted": 0, "no_context": 0, "self_cite_skip": 0}
 
         # Determine LLM model: prefer lightweight (dashboard_model), fallback to openai_model
         llm_model = getattr(ctx.config, 'dashboard_model', '') or ctx.config.openai_model
@@ -78,6 +104,20 @@ class CitationExtractSkill:
                         paper["_is_self_citation"] = True
                         stats["self_cite_skip"] += 1
                         # Continue to extract — self-citations still have citation contexts
+
+                    # Prefer S2 citation-edge context before cache/PDF fallback.
+                    s2_contexts = self._s2_contexts(paper)
+                    if s2_contexts:
+                        paper["Citing_Description"] = self._format_s2_description(
+                            paper, s2_contexts
+                        )
+                        paper["citing_desc_source"] = "s2"
+                        stats["s2_context"] += 1
+                        stats["extracted"] += 1
+                        result_slots[i] = paper
+                        if ctx.progress:
+                            ctx.progress(i + 1, total)
+                        return
 
                     # Check cache (args: paper_link, citing_paper_title, target_title)
                     if cache:
@@ -238,6 +278,31 @@ class CitationExtractSkill:
             tag = "★" if c.get("match_type") == "direct" else ""
             parts.append(f"[{c['section']}]{tag} {c['text']}")
         return "\n\n".join(parts)
+
+    @staticmethod
+    def _is_s2_phase1_record(paper: dict) -> bool:
+        sources = str(paper.get("Data_Sources", "") or "")
+        return "s2_phase1" in sources
+
+    @staticmethod
+    def _s2_contexts(paper: dict) -> list:
+        contexts = paper.get("s2_contexts") or paper.get("S2_Contexts") or []
+        return contexts if isinstance(contexts, list) else []
+
+    @staticmethod
+    def _format_s2_description(paper: dict, contexts: list) -> str:
+        intents = paper.get("s2_intents") or []
+        is_influential = bool(paper.get("s2_isInfluential", False))
+        prefix = "[S2 influential]" if is_influential else "[S2]"
+        lines = []
+        for idx, context in enumerate(contexts):
+            if not isinstance(context, str) or not context.strip():
+                continue
+            intent = ""
+            if idx < len(intents) and intents[idx]:
+                intent = f" ({intents[idx]})"
+            lines.append(f"{prefix}{intent} {context.strip()}")
+        return "\n".join(lines) if lines else "S2 未提供引用语境"
 
     @staticmethod
     def _parse_json(text: str) -> Optional[dict]:

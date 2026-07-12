@@ -45,6 +45,46 @@ def test_flatten_phase1_file(tmp_path):
     assert papers[1]["paper_title"] == "B"
 
 
+def test_flatten_preserves_s2_fields():
+    adapter = PipelineAdapter()
+    phase1_line = {
+        "page_0": {
+            "paper_dict": {
+                "paper_0": {
+                    "paper_title": "S2 Paper",
+                    "paper_link": "https://doi.org/10.1/s2",
+                    "paper_year": 2024,
+                    "citation": "9",
+                    "authors": {},
+                    "source": "s2",
+                    "s2_match_status": "title_exact",
+                    "s2_match_score": 1.0,
+                    "s2_id": "C1",
+                    "s2_contexts": ["Uses the target paper."],
+                    "s2_intents": ["methodology"],
+                    "s2_isInfluential": True,
+                    "s2_metadata": {
+                        "title": "S2 Paper",
+                        "year": 2024,
+                        "doi": "10.1/s2",
+                        "s2_id": "C1",
+                        "authors": [{"name": "Alice", "s2_id": "A1", "affiliation": ""}],
+                        "sources": ["s2_phase1"],
+                    },
+                }
+            }
+        }
+    }
+    papers = adapter.flatten_phase1_line(phase1_line)
+    assert papers[0]["source"] == "s2"
+    assert papers[0]["s2_match_status"] == "title_exact"
+    assert papers[0]["s2_contexts"] == ["Uses the target paper."]
+
+    metadata = adapter.metadata_from_s2_phase1(papers[0])
+    assert metadata["s2_id"] == "C1"
+    assert metadata["sources"] == ["s2_phase1"]
+
+
 def test_to_legacy_record():
     adapter = PipelineAdapter()
     paper = {

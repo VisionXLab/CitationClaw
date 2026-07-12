@@ -31,7 +31,7 @@ class PipelineAdapter:
         for page_id, page_content in line_data.items():
             paper_dict = page_content.get("paper_dict", {})
             for paper_id, paper_info in paper_dict.items():
-                papers.append({
+                record = {
                     "page_id": page_id,
                     "paper_id": paper_id,
                     "paper_title": paper_info.get("paper_title", ""),
@@ -41,7 +41,17 @@ class PipelineAdapter:
                     "authors_raw": paper_info.get("authors", {}),
                     "gs_pdf_link": paper_info.get("gs_pdf_link", ""),
                     "gs_all_versions": paper_info.get("gs_all_versions", ""),
-                })
+                }
+                for key in (
+                    "source", "s2_match_status", "s2_match_score",
+                    "s2_id", "doi", "arxiv_id", "venue", "pdf_url",
+                    "s2_contexts", "s2_intents", "s2_contextsWithIntent",
+                    "s2_isInfluential", "s2_citing_paper", "s2_cited_paper_id",
+                    "s2_metadata",
+                ):
+                    if key in paper_info:
+                        record[key] = paper_info.get(key)
+                papers.append(record)
         return papers
 
     def flatten_phase1_file(self, file_path) -> list:
@@ -199,5 +209,44 @@ class PipelineAdapter:
             "API_Authors": _clean(api_affil_str),
             "PDF_Authors": _clean(pdf_affil_str),
             "PDF_Path": _clean(pdf_path),
+            "S2_ID": _clean(paper.get("s2_id", "") or (metadata or {}).get("s2_id", "")),
+            "s2_match_status": _clean(paper.get("s2_match_status", "")),
+            "s2_match_score": paper.get("s2_match_score", ""),
+            "s2_contexts": paper.get("s2_contexts", []),
+            "s2_intents": paper.get("s2_intents", []),
+            "s2_contextsWithIntent": paper.get("s2_contextsWithIntent", []),
+            "s2_isInfluential": paper.get("s2_isInfluential", False),
         }
         return {str(record_index): record}
+
+    @staticmethod
+    def metadata_from_s2_phase1(paper: dict) -> Optional[dict]:
+        """Return CitationClaw metadata embedded by S2 Phase 1/enrichment."""
+        if not paper or paper.get("source") not in {"s2", "scholar+s2"}:
+            return None
+        meta = paper.get("s2_metadata")
+        if not isinstance(meta, dict):
+            return None
+        result = dict(meta)
+        result.setdefault("title", paper.get("paper_title", ""))
+        result.setdefault("year", paper.get("paper_year"))
+        result.setdefault("doi", paper.get("doi", ""))
+        result.setdefault("arxiv_id", paper.get("arxiv_id", ""))
+        result.setdefault("s2_id", paper.get("s2_id", ""))
+        result.setdefault("venue", paper.get("venue", ""))
+        result.setdefault("pdf_url", paper.get("pdf_url", ""))
+        result.setdefault("oa_pdf_url", "")
+        try:
+            cited_by_count = int(str(paper.get("citation") or 0).replace(",", ""))
+        except ValueError:
+            cited_by_count = 0
+        result.setdefault("cited_by_count", cited_by_count)
+        source_tag = (
+            "s2_enrichment"
+            if paper.get("source") == "scholar+s2"
+            else "s2_phase1"
+        )
+        result["sources"] = list(
+            dict.fromkeys(result.get("sources", []) + [source_tag])
+        )
+        return result

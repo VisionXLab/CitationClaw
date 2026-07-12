@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from citationclaw.skills.base import Skill
 from citationclaw.skills.phase1_citation_fetch import CitationFetchSkill
+from citationclaw.skills.phase1_s2_citation_fetch import S2CitationFetchSkill
+from citationclaw.skills.phase1_s2_enrich import S2CitationEnrichSkill
 from citationclaw.skills.phase2_author_intel import AuthorIntelSkill
 from citationclaw.skills.phase2_metadata import MetadataCollectionSkill
 from citationclaw.skills.phase3_export import ExportSkill
@@ -33,6 +35,8 @@ def build_default_registry() -> SkillRegistry:
     reg = SkillRegistry()
     # Phase 1: 施引文献检索 (unchanged)
     reg.register(CitationFetchSkill())
+    reg.register(S2CitationFetchSkill())
+    reg.register(S2CitationEnrichSkill())
     # Phase 2: 作者信息采集 (old: LLM search, new: structured APIs)
     reg.register(AuthorIntelSkill())
     reg.register(MetadataCollectionSkill())

@@ -16,6 +16,8 @@ from citationclaw.skills.registry import build_default_registry
 
 def test_all_new_skills_registered():
     reg = build_default_registry()
+    assert reg.get("phase1_s2_citation_fetch") is not None
+    assert reg.get("phase1_s2_enrich") is not None
     assert reg.get("phase2_metadata") is not None
     assert reg.get("phase3_scholar_assess") is not None
     assert reg.get("phase4_citation_extract") is not None
@@ -85,6 +87,42 @@ def test_prefilter_integrated():
     assert pf.is_candidate({"name": "A", "h_index": 50, "citation_count": 0, "affiliation": ""})
     assert pf.is_candidate({"name": "B", "h_index": 5, "citation_count": 0, "affiliation": "MIT"})
     assert not pf.is_candidate({"name": "C", "h_index": 4, "citation_count": 0, "affiliation": "Random U"})
+
+
+def test_hybrid_pdf_selection_skips_only_s2_context_and_self_cites():
+    from citationclaw.app.task_executor import TaskExecutor
+
+    records = [
+        ({"paper_title": "S2", "s2_contexts": ["context"]}, {}, "Target"),
+        ({"paper_title": "PDF", "s2_contexts": []}, {}, "Target"),
+        ({"paper_title": "Self", "s2_contexts": []}, {}, "Target"),
+        ({"paper_title": "Unmatched"}, {}, "Target"),
+    ]
+
+    indices, s2_skips = TaskExecutor._select_pdf_download_indices(
+        records, {2: True}
+    )
+
+    assert indices == [1, 3]
+    assert s2_skips == 1
+
+
+def test_positive_scholar_cache_bypasses_metric_prefilter():
+    from citationclaw.app.task_executor import TaskExecutor
+
+    class PositiveCache:
+        @staticmethod
+        def get(_title):
+            return [{"name": "Cached Scholar", "tier": "Fellow"}]
+
+    should_process = TaskExecutor._should_process_scholar_paper(
+        {"paper_title": "Cached Paper"},
+        {"authors": [{"name": "Low Metric Author", "h_index": 0}]},
+        set(),
+        PositiveCache(),
+    )
+
+    assert should_process is True
 
 
 def test_self_citation_integrated():

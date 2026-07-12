@@ -77,6 +77,38 @@ class TaskExecutor:
             return None
         return Path(path).resolve().relative_to(DATA_DIR.resolve()).as_posix()
 
+    @staticmethod
+    def _select_pdf_download_indices(
+        records_data: List[Tuple[dict, Optional[dict], str]],
+        self_cite_map: dict,
+    ) -> Tuple[list[int], int]:
+        """Return non-self-cite records that still need PDF fallback."""
+        indices = []
+        s2_context_skips = 0
+        for i, (paper, _, _) in enumerate(records_data):
+            if self_cite_map.get(i, False):
+                continue
+            if paper.get("s2_contexts"):
+                s2_context_skips += 1
+                continue
+            indices.append(i)
+        return indices, s2_context_skips
+
+    @staticmethod
+    def _should_process_scholar_paper(
+        paper: dict,
+        metadata: Optional[dict],
+        candidate_names: set[str],
+        scholar_cache,
+    ) -> bool:
+        """Consume any existing cache entry before applying metric prefilter."""
+        if scholar_cache.get(paper.get("paper_title", "")) is not None:
+            return True
+        return any(
+            author.get("name", "").strip().lower() in candidate_names
+            for author in (metadata or {}).get("authors", [])
+        )
+
     async def _run_skill(self, skill_name: str, config: AppConfig, **kwargs):
         """Execute one pipeline skill with shared runtime context."""
         result = await self.skills_runtime.run(
@@ -211,6 +243,33 @@ class TaskExecutor:
                 title = paper["paper_title"]
                 paper_link = paper.get("paper_link", "")
                 try:
+                    s2_phase1_metadata = adapter.metadata_from_s2_phase1(paper)
+                    if s2_phase1_metadata:
+                        metadata = s2_phase1_metadata
+                        if paper.get("source") == "scholar+s2":
+                            try:
+                                oa_result = await collector.openalex.search_work(title)
+                            except Exception:
+                                oa_result = None
+                            if oa_result:
+                                metadata["sources"] = list(dict.fromkeys(
+                                    metadata.get("sources", []) + ["openalex"]
+                                ))
+                                metadata["openalex_id"] = oa_result.get(
+                                    "openalex_id", ""
+                                )
+                                metadata["oa_pdf_url"] = oa_result.get(
+                                    "oa_pdf_url", ""
+                                )
+                                if not metadata.get("venue"):
+                                    metadata["venue"] = oa_result.get("venue", "")
+                                collector._enrich_s2_authors(
+                                    metadata.get("authors", []),
+                                    oa_result.get("authors", []),
+                                )
+                            api_queries += 1
+                        results_slots[idx] = metadata
+                        return
                     cached = await metadata_cache.get(title=title)
                     if cached:
                         metadata = cached
@@ -501,6 +560,23 @@ class TaskExecutor:
 
         await collector.close()
 
+        s2_only = bool(records_data) and all(
+            "s2_phase1" in ((metadata or {}).get("sources") or [])
+            for _, metadata, _ in records_data
+        )
+        if s2_only:
+            self.log_manager.info("[S2-only] skipping PDF download, MinerU parsing, and PDF author validation")
+            return await self._run_s2_scholar_export(
+                records_data=records_data,
+                self_cite_map=self_cite_map,
+                api_snapshots=api_snapshots,
+                pdf_snapshots=pdf_snapshots,
+                adapter=adapter,
+                result_dir=result_dir,
+                output_prefix=output_prefix,
+                config=config,
+            )
+
         # ── Phase 2 · PDF 下载 + 解析 + 交叉验证 ──
         self.log_manager.info("=" * 50)
         self.log_manager.info("Phase 2 · PDF 并行下载 + MinerU 解析 + 作者交叉验证")
@@ -552,14 +628,18 @@ class TaskExecutor:
 
         # Parallel PDF download — skip self-citations (saves time + bandwidth)
         _DL_CONCURRENCY = 10
-        need_download = sum(1 for i in range(len(dl_papers)) if not self_cite_map.get(i, False))
+        download_indices, s2_context_skip_count = (
+            self._select_pdf_download_indices(records_data, self_cite_map)
+        )
+        need_download = len(download_indices)
         self.log_manager.info(
             f"[PDF下载] 并行下载 {need_download} 篇非自引论文 "
-            f"(跳过 {self_cite_count} 篇自引) ({_DL_CONCURRENCY} workers)..."
+            f"(跳过 {self_cite_count} 篇自引 / "
+            f"{s2_context_skip_count} 篇 S2 context) "
+            f"({_DL_CONCURRENCY} workers)..."
         )
 
         pdf_paths: List[Optional[Path]] = [None] * len(dl_papers)
-        download_indices = [i for i in range(len(dl_papers)) if not self_cite_map.get(i, False)]
         download_batch = [dl_papers[i] for i in download_indices]
         first_attempt_failures: dict[int, list] = {}
 
@@ -939,8 +1019,9 @@ class TaskExecutor:
         for paper, metadata, canonical in non_self_cite_records:
             if not metadata:
                 continue
-            paper_authors = metadata.get("authors", [])
-            if any(a.get("name", "").strip().lower() in candidate_names for a in paper_authors):
+            if self._should_process_scholar_paper(
+                paper, metadata, candidate_names, scholar_cache
+            ):
                 papers_with_candidates.append((paper, metadata, canonical))
 
         n_search = len(papers_with_candidates)
@@ -1094,6 +1175,185 @@ class TaskExecutor:
             json_output=json_file,
         )
 
+        return merged_file, excel_file, json_file, pdf_paths
+
+    async def _run_s2_scholar_export(
+        self,
+        *,
+        records_data: List[Tuple[dict, Optional[dict], str]],
+        self_cite_map: dict,
+        api_snapshots: dict,
+        pdf_snapshots: dict,
+        adapter: PipelineAdapter,
+        result_dir: Path,
+        output_prefix: str,
+        config: AppConfig,
+    ) -> Tuple[Path, Path, Path, list]:
+        """S2-only Phase 3/export path: no PDF download or PDF parsing."""
+        pdf_paths: List[Optional[Path]] = [None] * len(records_data)
+
+        # S2 paper search returns author IDs but not metrics; fill h-index/citations
+        # before the renowned-scholar prefilter.
+        from citationclaw.core.s2_client import S2Client
+        s2_author_client = S2Client(api_key=getattr(config, "s2_api_key", None))
+        author_refs = {}
+        for _, metadata, _ in records_data:
+            for author in (metadata or {}).get("authors", []):
+                sid = author.get("s2_id", "")
+                if sid:
+                    author_refs.setdefault(sid, []).append(author)
+
+        if author_refs:
+            self.log_manager.info(f"[S2 authors] enriching {len(author_refs)} authors via S2 Author API...")
+            sem = asyncio.Semaphore(3)
+
+            async def _enrich_author(author_id: str, authors: list):
+                async with sem:
+                    try:
+                        detail = await s2_author_client.get_author(author_id)
+                    except Exception:
+                        detail = None
+                    if not detail:
+                        return
+                    for author in authors:
+                        if detail.get("h_index") and not author.get("h_index"):
+                            author["h_index"] = detail["h_index"]
+                        if detail.get("citation_count") and not author.get("citation_count"):
+                            author["citation_count"] = detail["citation_count"]
+                        if detail.get("affiliation") and not author.get("affiliation"):
+                            author["affiliation"] = detail["affiliation"]
+
+            try:
+                await asyncio.gather(*[
+                    _enrich_author(author_id, authors)
+                    for author_id, authors in author_refs.items()
+                ])
+            finally:
+                await s2_author_client.close()
+        else:
+            await s2_author_client.close()
+
+        non_self_records = [
+            (paper, metadata, canonical)
+            for i, (paper, metadata, canonical) in enumerate(records_data)
+            if not self_cite_map.get(i, False)
+        ]
+
+        self.log_manager.info("=" * 50)
+        self.log_manager.info("Phase 3 · Scholar assessment (S2-only)")
+        self.log_manager.info("=" * 50)
+
+        prefilter = ScholarPreFilter()
+        unique_authors = {}
+        for _, metadata, _ in non_self_records:
+            for author in (metadata or {}).get("authors", []):
+                name = author.get("name", "").strip()
+                if name and name.lower() not in unique_authors:
+                    unique_authors[name.lower()] = author
+        candidates, _ = prefilter.filter_candidates(list(unique_authors.values()))
+        candidate_names = {c.get("name", "").strip().lower() for c in candidates}
+        from citationclaw.core.scholar_search_cache import ScholarSearchCache
+        scholar_cache = ScholarSearchCache()
+        papers_with_candidates = []
+        for paper, metadata, canonical in non_self_records:
+            if self._should_process_scholar_paper(
+                paper, metadata, candidate_names, scholar_cache
+            ):
+                papers_with_candidates.append((paper, metadata, canonical))
+        self.log_manager.info(
+            f"[S2 prefilter] {len(unique_authors)} authors -> "
+            f"{len(candidates)} candidates across {len(papers_with_candidates)} papers"
+        )
+
+        search_agent = ScholarSearchAgent(
+            api_key=config.openai_api_key,
+            base_url=config.openai_base_url,
+            model=config.openai_model,
+            log_callback=self.log_manager.info,
+        )
+        paper_scholar_map: dict = {}
+        search_sem = asyncio.Semaphore(10)
+
+        async def _search_one(paper: dict, metadata: dict):
+            title = paper.get("paper_title", "")
+            async with search_sem:
+                if self.should_cancel:
+                    return
+                cached = scholar_cache.get(title)
+                if cached is not None:
+                    if cached:
+                        paper_scholar_map[title.lower().strip()] = cached
+                    return
+                found = []
+                try:
+                    raw = await search_agent.search_paper_authors(
+                        paper_title=title,
+                        authors=(metadata or {}).get("authors", []),
+                    )
+                except Exception as exc:
+                    self.log_manager.info(f"  [S2 scholar] {title[:45]}... failed: {str(exc)[:50]}")
+                    raw = []
+                for result in raw:
+                    if result.name and result.tier:
+                        found.append({
+                            "name": result.name,
+                            "tier": result.tier,
+                            "honors": [result.honors] if result.honors else [],
+                            "affiliation": result.affiliation,
+                            "country": result.country,
+                            "position": result.position,
+                        })
+                if found:
+                    paper_scholar_map[title.lower().strip()] = found
+                await scholar_cache.update(title, found)
+
+        try:
+            await asyncio.gather(*[
+                _search_one(paper, metadata)
+                for paper, metadata, _ in papers_with_candidates
+            ])
+        finally:
+            await search_agent.close()
+            await scholar_cache.flush()
+
+        merged_file = result_dir / "merged_authors.jsonl"
+        record_idx = 0
+        with open(merged_file, "w", encoding="utf-8") as f:
+            for i, (paper, metadata, canonical) in enumerate(records_data):
+                is_self = self_cite_map.get(i, False)
+                paper_scholars = [] if is_self else paper_scholar_map.get(
+                    paper.get("paper_title", "").lower().strip(), []
+                )
+                record_idx += 1
+                record = adapter.to_legacy_record(
+                    paper=paper,
+                    metadata=metadata,
+                    self_citation={"is_self_citation": is_self, "method": "pre-checked"},
+                    renowned_scholars=paper_scholars,
+                    citing_paper=canonical,
+                    record_index=record_idx,
+                    api_authors_snapshot=api_snapshots.get(i),
+                    pdf_authors_snapshot=pdf_snapshots.get(i),
+                    pdf_downloaded=False,
+                    pdf_path="",
+                )
+                f.write(_json.dumps(record, ensure_ascii=False) + "\n")
+
+        await self._enrich_unknown_affiliations(merged_file, config, paper_scholar_map)
+        fixed_count = await self._validate_and_fix_records(merged_file, config)
+        if fixed_count:
+            self.log_manager.info(f"  -> fixed {fixed_count} country/field records")
+
+        self.log_manager.info("Phase 3 · Export results")
+        excel_file = result_dir / f"{output_prefix}_results.xlsx"
+        json_file = result_dir / f"{output_prefix}_results.json"
+        await self._run_skill(
+            "phase3_export",
+            config,
+            input_file=merged_file,
+            excel_output=excel_file,
+            json_output=json_file,
+        )
         return merged_file, excel_file, json_file, pdf_paths
 
     async def _enrich_unknown_affiliations(self, merged_file: Path, config,
@@ -1945,7 +2205,6 @@ class TaskExecutor:
                     retry_intervals=config.retry_intervals,
                     cost_tracker=cost_tracker,
                 )
-
                 for i, (title, canonical) in enumerate(all_search_titles):
                     if self.should_cancel:
                         break
@@ -1955,7 +2214,6 @@ class TaskExecutor:
                     self.log_manager.info(f"搜索 {i+1}/{total}: {title}{alias_tag}")
                     self.log_manager.info("=" * 50)
 
-                    # —— 查找引用 URL ——
                     url = await url_finder.find_citation_url(title)
                     if not url:
                         self.log_manager.warning(f"跳过（未找到引用链接）: {title}")
@@ -2001,12 +2259,12 @@ class TaskExecutor:
                             finally:
                                 self._year_traverse_event = None
 
-                    citing_file = result_dir / f"{paper_slug}_citing.jsonl"
+                    gs_citing_file = result_dir / f"{paper_slug}_citing_gs.jsonl"
                     await self._run_skill(
                         "phase1_citation_fetch",
                         config,
                         url=url,
-                        output_file=citing_file,
+                        output_file=gs_citing_file,
                         start_page=0,
                         sleep_seconds=config.sleep_between_pages,
                         enable_year_traverse=config.enable_year_traverse,
@@ -2014,6 +2272,27 @@ class TaskExecutor:
                     )
                     if self.should_cancel:
                         break
+                    citing_file = result_dir / f"{paper_slug}_citing.jsonl"
+                    if getattr(config, "s2_api_key", ""):
+                        self.log_manager.info(
+                            "Phase 1.5 · S2 citation-edge enrichment"
+                        )
+                        await self._run_skill(
+                            "phase1_s2_enrich",
+                            config,
+                            title=title,
+                            input_file=gs_citing_file,
+                            output_file=citing_file,
+                            scan_cap=3000,
+                        )
+                    else:
+                        citing_file.write_text(
+                            gs_citing_file.read_text(encoding="utf-8"),
+                            encoding="utf-8",
+                        )
+                        self.log_manager.info(
+                            "[S2 enrichment] no API key; using original GS records"
+                        )
                     citing_files.append((citing_file, canonical))
 
             if self.should_cancel:
@@ -2094,6 +2373,7 @@ class TaskExecutor:
                 # Merge descriptions back into Excel
                 if phase4_output_jsonl.exists():
                     desc_map = {}
+                    desc_source_map = {}
                     with open(phase4_output_jsonl, encoding="utf-8") as f:
                         for line in f:
                             line = line.strip()
@@ -2112,14 +2392,37 @@ class TaskExecutor:
                                     desc = inner.get("Citing_Description", "")
                                     if title and desc:
                                         desc_map[title.strip()] = desc
+                                        desc_source_map[title.strip()] = inner.get(
+                                            "citing_desc_source", ""
+                                        )
                             except Exception:
                                 continue
 
                     if desc_map:
                         df = pd.read_excel(excel_file)
                         df["Citing_Description"] = df["Paper_Title"].str.strip().map(desc_map).fillna("")
+                        df["citing_desc_source"] = (
+                            df["Paper_Title"].str.strip().map(desc_source_map).fillna("")
+                        )
                         citing_desc_excel = result_dir / f"{output_prefix}_results_with_citing_desc.xlsx"
                         df.to_excel(citing_desc_excel, index=False)
+                        if json_file.exists():
+                            json_rows = _json.loads(
+                                json_file.read_text(encoding="utf-8")
+                            )
+                            for row in json_rows:
+                                row_title = str(row.get("Paper_Title", "")).strip()
+                                if row_title in desc_map:
+                                    row["Citing_Description"] = desc_map[row_title]
+                                    row["citing_desc_source"] = desc_source_map.get(
+                                        row_title, ""
+                                    )
+                            json_file.write_text(
+                                _json.dumps(
+                                    json_rows, ensure_ascii=False, indent=3
+                                ),
+                                encoding="utf-8",
+                            )
                         n_with = (df["Citing_Description"].str.strip() != "").sum()
                         self.log_manager.success(
                             f"Phase 4 完成: {n_with}/{len(df)} 篇有引文语境描述"
