@@ -6,6 +6,7 @@ The key advantage over v1.0.9: the LLM receives structured data
 (real author names, affiliations, h-index from APIs) instead of
 searching blindly from just a paper title.
 """
+import asyncio
 import re
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict

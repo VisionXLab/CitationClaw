@@ -13,8 +13,20 @@ def test_high_h_index_is_candidate():
 
 def test_high_citations_is_candidate():
     pf = ScholarPreFilter()
-    author = {"name": "Bob", "h_index": 10, "citation_count": 15000, "affiliation": "Small Lab"}
+    author = {"name": "Bob", "h_index": 5, "citation_count": 1000, "affiliation": "Small Lab"}
     assert pf.is_candidate(author) is True
+
+
+def test_h_index_threshold_is_candidate():
+    pf = ScholarPreFilter()
+    author = {"name": "Hannah", "h_index": 5, "citation_count": 0, "affiliation": "Small Lab"}
+    assert pf.is_candidate(author) is True
+
+
+def test_below_relaxed_thresholds_is_not_candidate():
+    pf = ScholarPreFilter()
+    author = {"name": "Ian", "h_index": 4, "citation_count": 999, "affiliation": "Small Lab"}
+    assert pf.is_candidate(author) is False
 
 
 def test_known_institution_is_candidate():
@@ -25,7 +37,7 @@ def test_known_institution_is_candidate():
 
 def test_unknown_low_metrics_not_candidate():
     pf = ScholarPreFilter()
-    author = {"name": "Dave", "h_index": 5, "citation_count": 100, "affiliation": "Small University"}
+    author = {"name": "Dave", "h_index": 4, "citation_count": 100, "affiliation": "Small University"}
     assert pf.is_candidate(author) is False
 
 

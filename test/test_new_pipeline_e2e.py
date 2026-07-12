@@ -84,7 +84,7 @@ def test_prefilter_integrated():
     pf = ScholarPreFilter()
     assert pf.is_candidate({"name": "A", "h_index": 50, "citation_count": 0, "affiliation": ""})
     assert pf.is_candidate({"name": "B", "h_index": 5, "citation_count": 0, "affiliation": "MIT"})
-    assert not pf.is_candidate({"name": "C", "h_index": 5, "citation_count": 0, "affiliation": "Random U"})
+    assert not pf.is_candidate({"name": "C", "h_index": 4, "citation_count": 0, "affiliation": "Random U"})
 
 
 def test_self_citation_integrated():

@@ -71,5 +71,5 @@ tiers:
       condition: "Top 100 university (QS/THE ranking)"
 
 pre_filter:
-  h_index_threshold: 20
-  citation_threshold: 3000
+  h_index_threshold: 5
+  citation_threshold: 1000
