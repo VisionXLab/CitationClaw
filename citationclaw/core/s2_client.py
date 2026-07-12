@@ -5,12 +5,31 @@ Free tier: 1 req/s without key, higher with API key.
 Unique fields: h_index, influentialCitationCount.
 """
 import asyncio
-from typing import Optional, List
+from typing import Optional, List, Iterable
 from urllib.parse import quote
 
 from citationclaw.core.http_utils import make_async_client
 
 BASE_URL = "https://api.semanticscholar.org/graph/v1"
+
+S2_PAPER_FIELDS = ",".join([
+    "title", "year", "citationCount", "influentialCitationCount",
+    "authors", "venue", "abstract", "externalIds", "publicationDate",
+    "fieldsOfStudy", "referenceCount", "openAccessPdf", "publicationVenue",
+    "journal", "isOpenAccess",
+])
+
+S2_LIGHT_FIELDS = (
+    "citingPaper.paperId,citingPaper.title,"
+    "citingPaper.citationCount,citingPaper.year"
+)
+
+S2_RICH_FIELDS = ",".join([
+    "contexts", "intents", "contextsWithIntent", "isInfluential",
+    "citingPaper.paperId", "citingPaper.title",
+    "citingPaper.citationCount", "citingPaper.year",
+    "citingPaper.externalIds",
+])
 
 _s2_global_sem: Optional[asyncio.Semaphore] = None  # Initialized per-client
 
@@ -20,6 +39,7 @@ class S2Client:
         global _s2_global_sem
         self._client = make_async_client(timeout=30.0)
         self._has_key = bool(api_key)
+        self.used_anonymous_fallback = False
         if api_key:
             self._client.headers["x-api-key"] = api_key
             self._rate_delay = 0.4  # With key: ~2.5 req/s per slot
@@ -30,27 +50,159 @@ class S2Client:
             if _s2_global_sem is None:
                 _s2_global_sem = asyncio.Semaphore(1)
 
+    def _switch_to_anonymous(self) -> bool:
+        global _s2_global_sem
+        if not self._has_key:
+            return False
+        self._client.headers.pop("x-api-key", None)
+        self._has_key = False
+        self.used_anonymous_fallback = True
+        self._rate_delay = 1.1
+        _s2_global_sem = asyncio.Semaphore(1)
+        return True
+
     async def search_paper(self, title: str) -> Optional[dict]:
-        url = self._build_search_url(title)
-        for attempt in range(3):
+        data = await self._get_json(
+            "/paper/search",
+            {"query": title, "limit": 1, "fields": S2_PAPER_FIELDS},
+            retries=3,
+        )
+        results = data.get("data", []) if data else []
+        return self._parse_paper(results[0]) if results else None
+
+    async def _get_json(self, path: str, params: Optional[dict] = None, retries: int = 4):
+        url = f"{BASE_URL}{path}"
+        for attempt in range(retries):
             async with _s2_global_sem:
                 await asyncio.sleep(self._rate_delay)
                 try:
-                    resp = await self._client.get(url)
+                    resp = await self._client.get(url, params=params)
                 except Exception:
-                    return None
+                    await asyncio.sleep(3)
+                    continue
             if resp.status_code == 429:
-                # Rate limited — back off and retry
-                await asyncio.sleep(3 * (attempt + 1))
+                await asyncio.sleep(5 * (attempt + 1))
+                continue
+            if resp.status_code in (401, 403) and self._switch_to_anonymous():
+                continue
+            if resp.status_code == 404:
+                return None
+            if resp.status_code != 200:
+                await asyncio.sleep(3)
+                continue
+            return resp.json()
+        return None
+
+    async def _post_json(
+        self,
+        path: str,
+        body: dict,
+        params: Optional[dict] = None,
+        retries: int = 4,
+    ):
+        url = f"{BASE_URL}{path}"
+        for attempt in range(retries):
+            async with _s2_global_sem:
+                await asyncio.sleep(self._rate_delay)
+                try:
+                    resp = await self._client.post(url, json=body, params=params)
+                except Exception:
+                    await asyncio.sleep(3)
+                    continue
+            if resp.status_code == 429:
+                await asyncio.sleep(5 * (attempt + 1))
+                continue
+            if resp.status_code in (401, 403) and self._switch_to_anonymous():
                 continue
             if resp.status_code != 200:
-                return None
-            data = resp.json()
-            results = data.get("data", [])
-            if not results:
-                return None
-            return self._parse_paper(results[0])
-        return None  # All retries exhausted
+                await asyncio.sleep(3)
+                continue
+            return resp.json()
+        return None
+
+    async def search_match(self, title: str) -> Optional[dict]:
+        data = await self._get_json(
+            "/paper/search/match",
+            {"query": title, "fields": S2_PAPER_FIELDS},
+        )
+        return data["data"][0] if data and data.get("data") else None
+
+    async def search(self, query: str, limit: int = 5) -> Optional[dict]:
+        data = await self._get_json(
+            "/paper/search",
+            {"query": query, "limit": limit, "fields": S2_PAPER_FIELDS},
+        )
+        return data["data"][0] if data and data.get("data") else None
+
+    async def get_paper(self, paper_id: str) -> Optional[dict]:
+        return await self._get_json(f"/paper/{paper_id}", {"fields": S2_PAPER_FIELDS})
+
+    async def batch_papers(self, paper_ids: Iterable[str]) -> dict:
+        ids = [pid for pid in paper_ids if pid]
+        results = {}
+        for i in range(0, len(ids), 500):
+            batch = ids[i:i + 500]
+            data = await self._post_json(
+                "/paper/batch",
+                {"ids": batch},
+                {"fields": S2_PAPER_FIELDS},
+            )
+            if not data:
+                continue
+            for paper in data:
+                if paper and paper.get("paperId"):
+                    results[paper["paperId"]] = paper
+        return results
+
+    async def get_citations_light(self, paper_id: str, scan_cap: int = 3000) -> list:
+        items = []
+        offset = 0
+        while len(items) < scan_cap:
+            data = await self._get_json(
+                f"/paper/{paper_id}/citations",
+                {"fields": S2_LIGHT_FIELDS, "limit": 1000, "offset": offset},
+            )
+            if not data:
+                break
+            batch = data.get("data") or []
+            items.extend(batch)
+            if data.get("next") is None or len(batch) < 1000:
+                break
+            offset = data["next"]
+            if offset >= min(scan_cap, 9500):
+                break
+        return items[:scan_cap]
+
+    async def get_citation_contexts(self, paper_id: str, target_ids: set[str]) -> dict:
+        contexts = {}
+        if not target_ids:
+            return contexts
+        offset = 0
+        while True:
+            data = await self._get_json(
+                f"/paper/{paper_id}/citations",
+                {"fields": S2_RICH_FIELDS, "limit": 500, "offset": offset},
+            )
+            if not data:
+                break
+            for item in data.get("data") or []:
+                citing = (item or {}).get("citingPaper") or {}
+                pid = citing.get("paperId")
+                if pid and pid in target_ids:
+                    contexts[pid] = {
+                        "contexts": item.get("contexts") or [],
+                        "intents": item.get("intents") or [],
+                        "contextsWithIntent": item.get("contextsWithIntent") or [],
+                        "isInfluential": item.get("isInfluential") or False,
+                    }
+            if len(contexts) >= len(target_ids):
+                break
+            if data.get("next") is None or len(data.get("data") or []) < 500:
+                break
+            offset = data["next"]
+            if offset >= 9500:
+                break
+        return contexts
 
     @staticmethod
     def _titles_match(query: str, result: str, threshold: float = 0.45) -> bool:
@@ -92,34 +244,30 @@ class S2Client:
             return None
         fields = "title,year,authors,citationCount,influentialCitationCount,externalIds,openAccessPdf,venue,publicationVenue,journal"
         encoded = quote(paper_url, safe='')
-        url = f"{BASE_URL}/paper/URL:{encoded}?fields={fields}"
-        async with _s2_global_sem:
-            await asyncio.sleep(self._rate_delay)
-            try:
-                resp = await self._client.get(url)
-            except Exception:
-                return None
-        if resp.status_code != 200:
+        data = await self._get_json(
+            f"/paper/URL:{encoded}",
+            {"fields": fields},
+        )
+        if not data:
             return None
         try:
-            return self._parse_paper(resp.json())
+            return self._parse_paper(data)
         except Exception:
             return None
 
     async def get_author(self, author_id: str) -> Optional[dict]:
-        url = f"{BASE_URL}/author/{author_id}?fields=name,hIndex,citationCount,affiliations"
-        async with _s2_global_sem:
-            await asyncio.sleep(self._rate_delay)
-            resp = await self._client.get(url)
-        if resp.status_code != 200:
+        data = await self._get_json(
+            f"/author/{author_id}",
+            {"fields": "name,hIndex,citationCount,affiliations"},
+        )
+        if not data:
             return None
-        return self._parse_author(resp.json())
+        return self._parse_author(data)
 
     def _build_search_url(self, title: str) -> str:
         # NOTE: Do NOT include authors.affiliations — it causes S2 to return empty author names!
         # Affiliations are supplemented later from OpenAlex or PDF extraction.
-        fields = "title,year,authors,citationCount,influentialCitationCount,externalIds,isOpenAccess,openAccessPdf,venue,publicationVenue,journal"
-        return f"{BASE_URL}/paper/search?query={quote(title)}&limit=1&fields={fields}"
+        return f"{BASE_URL}/paper/search?query={quote(title)}&limit=1&fields={S2_PAPER_FIELDS}"
 
     def _parse_paper(self, paper: dict) -> dict:
         authors = []
