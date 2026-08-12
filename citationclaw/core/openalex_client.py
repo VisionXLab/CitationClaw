@@ -78,7 +78,8 @@ class OpenAlexClient:
                 "name": author.get("display_name", ""),
                 "openalex_id": author.get("id", ""),
                 "affiliation": inst.get("display_name", ""),
-                "country": inst.get("country_code", ""),
+                # OpenAlex may include the key with a JSON null value.
+                "country": inst.get("country_code") or "",
             })
         oa_loc = work.get("best_oa_location") or {}
         venue = work.get("primary_location", {}).get("source", {}).get("display_name", "")

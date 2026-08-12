@@ -510,7 +510,7 @@ class MinerUParser:
                     md_text = zf.read(name).decode('utf-8')
                     (output_dir / "full.md").write_text(md_text, encoding="utf-8")
                 elif 'content_list' in name and name.endswith('.json'):
-                    content_list = json.loads(zf.read(name))
+                    content_list = self._normalize_content_list(json.loads(zf.read(name)))
                     (output_dir / "content_list.json").write_text(
                         json.dumps(content_list, ensure_ascii=False), encoding="utf-8"
                     )
@@ -523,10 +523,7 @@ class MinerUParser:
         return {
             "content_list": content_list,
             "full_md": md_text,
-            "first_page_blocks": (
-                [b for b in content_list if b.get("page_idx", 99) == 0][:20]
-                if content_list else self._md_to_first_page(md_text)
-            ),
+            "first_page_blocks": self._first_page_blocks(content_list, md_text),
             "references_md": self._extract_references(md_text),
             "source": "mineru_cloud_precision",
             "parsed_at": parsed_at,
@@ -560,7 +557,7 @@ class MinerUParser:
             content_list = []
             for f in output_dir.rglob("*content_list.json"):
                 with open(f) as fh:
-                    content_list = json.load(fh)
+                    content_list = self._normalize_content_list(json.load(fh))
                 break
 
             md_text = ""
@@ -582,9 +579,7 @@ class MinerUParser:
             return {
                 "content_list": content_list,
                 "full_md": md_text,
-                "first_page_blocks": (
-                    [b for b in content_list if b.get("page_idx", 99) == 0][:20]
-                ),
+                "first_page_blocks": self._first_page_blocks(content_list, md_text),
                 "references_md": self._extract_references(md_text),
                 "source": "mineru_local",
                 "parsed_at": parsed_at,
@@ -685,7 +680,7 @@ class MinerUParser:
             parsed_at = datetime.now(timezone.utc).isoformat()
             for f in output_dir.rglob("*content_list.json"):
                 with open(f) as fh:
-                    content_list = json.load(fh)
+                    content_list = self._normalize_content_list(json.load(fh))
                 break
             if meta_path.exists():
                 meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -694,16 +689,82 @@ class MinerUParser:
             return {
                 "content_list": content_list,
                 "full_md": md_text,
-                "first_page_blocks": (
-                    [b for b in content_list if b.get("page_idx", 99) == 0][:20]
-                    if content_list else self._md_to_first_page(md_text)
-                ),
+                "first_page_blocks": self._first_page_blocks(content_list, md_text),
                 "references_md": self._extract_references(md_text),
                 "source": source or ("mineru" if content_list else "pymupdf"),
                 "parsed_at": parsed_at,
             }
         except Exception:
             return None
+
+    @classmethod
+    def _normalize_content_list(cls, raw_content) -> list:
+        """Normalize MinerU's flat and page-grouped content-list formats.
+
+        Depending on the Precision pipeline response, ``content_list.json`` may
+        be either ``list[dict]`` with an explicit ``page_idx`` or
+        ``list[list[dict]]`` where each outer item represents one page.  Downstream
+        code expects the former shape and a top-level ``text`` field.
+        """
+        if not isinstance(raw_content, list):
+            return []
+
+        normalized = []
+
+        def add_block(block, page_idx: int):
+            if not isinstance(block, dict):
+                return
+            item = dict(block)
+            item.setdefault("page_idx", page_idx)
+            if not str(item.get("text") or "").strip():
+                text = cls._content_block_text(item.get("content"))
+                if text:
+                    item["text"] = text
+            normalized.append(item)
+
+        for index, entry in enumerate(raw_content):
+            if isinstance(entry, list):
+                for block in entry:
+                    add_block(block, index)
+            else:
+                # Flat format already carries page_idx. Default to page zero for
+                # older variants where the field is omitted.
+                add_block(entry, 0)
+
+        return normalized
+
+    @classmethod
+    def _content_block_text(cls, value) -> str:
+        """Extract readable text from the nested Precision content schema."""
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, list):
+            parts = [cls._content_block_text(item) for item in value]
+            return " ".join(part for part in parts if part).strip()
+        if not isinstance(value, dict):
+            return ""
+
+        # These fields are metadata or asset locations, not PDF text.
+        ignored = {"type", "level", "math_type", "image_source", "path"}
+        parts = []
+        for key, item in value.items():
+            if key in ignored:
+                continue
+            text = cls._content_block_text(item)
+            if text:
+                parts.append(text)
+        return " ".join(parts).strip()
+
+    @classmethod
+    def _first_page_blocks(cls, content_list: list, md_text: str) -> list:
+        """Return usable first-page blocks, falling back to markdown text."""
+        blocks = [
+            block for block in content_list
+            if isinstance(block, dict)
+            and block.get("page_idx", 99) == 0
+            and str(block.get("text") or "").strip()
+        ][:20]
+        return blocks or cls._md_to_first_page(md_text)
 
     @staticmethod
     def _md_to_first_page(text: str) -> list:

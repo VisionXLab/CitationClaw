@@ -270,7 +270,7 @@ class CitationExtractSkill:
             client = AsyncOpenAI(
                 api_key=ctx.config.effective_light_api_key(),
                 base_url=(ctx.config.effective_light_base_url() or "").rstrip("/") + "/",
-                http_client=make_async_client(timeout=60.0),
+                http_client=make_async_client(timeout=600.0),
             )
 
             parsed_paragraphs = self._build_paragraphs(contexts)

@@ -80,7 +80,7 @@ class ScholarSearchAgent:
             self._client = AsyncOpenAI(
                 api_key=self._api_key,
                 base_url=base,
-                http_client=make_async_client(timeout=120.0),
+                http_client=make_async_client(timeout=300.0),
             )
 
     async def search_paper_authors(self, paper_title: str, authors: List[dict]) -> List[ScholarResult]:
@@ -127,14 +127,14 @@ class ScholarSearchAgent:
                     model=self._model,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.1,
-                    timeout=60.0,
+                    timeout=300.0,
                 ),
-                timeout=90.0,  # Hard asyncio timeout as safety net
+                timeout=300.0,  # Hard asyncio timeout as safety net
             )
             text = response.choices[0].message.content.strip()
             return self._parse_response(text)
-        except asyncio.TimeoutError:
-            self._log(f"    ⚠ 搜索LLM超时 (90s)")
+        except _aio.TimeoutError:
+            self._log("    ⚠ 搜索LLM超时 (300s)")
             return []
         except Exception as e:
             self._log(f"    ⚠ 搜索LLM调用失败: {e}")
@@ -206,9 +206,9 @@ class ScholarSearchAgent:
         return s.strip()
 
     @staticmethod
-    def _normalize_country(raw: str) -> str:
-        """Normalize country names to Chinese."""
-        s = raw.strip()
+    def _normalize_country(raw: Optional[str]) -> str:
+        """Normalize country names to Chinese, tolerating missing API values."""
+        s = str(raw or "").strip()
         # Remove parenthetical codes like "(CN)" "（US）"
         s = re.sub(r'[（(]\s*[A-Z]{2,3}\s*[）)]', '', s).strip()
         # Map common codes and English names to Chinese

@@ -21,7 +21,11 @@ def test_parse_work_response():
             {
                 "author": {"id": "A1", "display_name": "Ashish Vaswani"},
                 "institutions": [{"display_name": "Google Brain", "country_code": "US"}],
-            }
+            },
+            {
+                "author": {"id": "A2", "display_name": "Unknown Country"},
+                "institutions": [{"display_name": "Example University", "country_code": None}],
+            },
         ],
         "doi": "https://doi.org/10.xxxx",
     }
@@ -30,6 +34,7 @@ def test_parse_work_response():
     assert result["authors"][0]["name"] == "Ashish Vaswani"
     assert result["authors"][0]["affiliation"] == "Google Brain"
     assert result["authors"][0]["country"] == "US"
+    assert result["authors"][1]["country"] == ""
     assert result["source"] == "openalex"
 
 def test_parse_author_response():
