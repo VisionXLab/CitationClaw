@@ -107,7 +107,11 @@ class PipelineAdapter:
         if api_authors_snapshot:
             api_lines = []
             for a in api_authors_snapshot:
-                api_lines.append(f"{a.get('name','')} | {a.get('affiliation','') or '未知'} | {ScholarSearchAgent._normalize_country(a.get('country',''))}")
+                api_lines.append(
+                    f"{a.get('name', '')} | "
+                    f"{a.get('affiliation', '') or '未知'} | "
+                    f"{ScholarSearchAgent._normalize_country(a.get('country') or '')}"
+                )
             api_affil_str = "\n".join(api_lines)
 
         # Build PDF-only snapshot string

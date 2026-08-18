@@ -60,6 +60,7 @@ def test_normalize_country():
     assert ScholarSearchAgent._normalize_country("China") == "中国"
     assert ScholarSearchAgent._normalize_country("中国") == "中国"
     assert ScholarSearchAgent._normalize_country("UK") == "英国"
+    assert ScholarSearchAgent._normalize_country(None) == ""
 
 
 def test_extract_name_keys():

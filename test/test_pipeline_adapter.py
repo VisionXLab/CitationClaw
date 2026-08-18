@@ -95,3 +95,34 @@ def test_to_legacy_no_metadata():
     assert inner["Paper_Title"] == "Unknown Paper"
     assert inner["Data_Sources"] == ""
     assert inner["Authors_Affiliation"] == ""
+
+
+def test_to_legacy_tolerates_null_country_from_api():
+    adapter = PipelineAdapter()
+    paper = {
+        "paper_title": "Paper With Missing Country",
+        "paper_link": "",
+        "paper_year": 2024,
+        "citation": "1",
+        "authors_raw": {},
+        "page_id": "page_0",
+        "paper_id": "paper_0",
+    }
+    api_author = {
+        "name": "Example Author",
+        "affiliation": "Example University",
+        "country": None,
+    }
+
+    record = adapter.to_legacy_record(
+        paper=paper,
+        metadata={"authors": [api_author], "sources": ["openalex"]},
+        self_citation={"is_self_citation": False, "method": "none"},
+        renowned_scholars=[],
+        citing_paper="Target Paper",
+        record_index=1,
+        api_authors_snapshot=[api_author],
+    )["1"]
+
+    assert record["First_Author_Country"] == ""
+    assert record["API_Authors"] == "Example Author | Example University |"

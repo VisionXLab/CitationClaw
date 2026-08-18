@@ -1157,7 +1157,7 @@ class TaskExecutor:
             client = AsyncOpenAI(
                 api_key=config.openai_api_key,
                 base_url=(config.openai_base_url or "").rstrip("/") + "/",
-                http_client=make_async_client(timeout=60.0),
+                http_client=make_async_client(timeout=120.0),
             )
 
             affil_results = {}  # author_name_lower → institution
@@ -1178,7 +1178,7 @@ class TaskExecutor:
                                 temperature=0.0,
                                 extra_body={"web_search_options": {}},
                             ),
-                            timeout=45,
+                            timeout=120,
                         )
                     answer = (resp.choices[0].message.content or "").strip()
                     # Clean up: remove quotes, markdown, etc.
