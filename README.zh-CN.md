@@ -230,7 +230,7 @@ CitationClaw 面向科研人员、研究团队、项目管理者和希望理解�
 
 <div align="center">
 
-[![Star History Chart](https://api.star-history.com/svg?repos=VisionXLab/CitationClaw&type=Date)](https://star-history.com/#VisionXLab/CitationClaw&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=VisionXLab/CitationClaw&type=Date)](https://star-history.dera.page/#VisionXLab/CitationClaw&Date)
 
 </div>
 
