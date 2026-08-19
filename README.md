@@ -205,7 +205,7 @@ CitationClaw is intended for academic research and personal study. Follow the te
 
 <div align="center">
 
-[![Star History Chart](https://api.star-history.com/svg?repos=VisionXLab/CitationClaw&type=Date)](https://star-history.com/#VisionXLab/CitationClaw&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=VisionXLab/CitationClaw&type=Date)](https://star-history.dera.page/#VisionXLab/CitationClaw&Date)
 
 </div>
 
